@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma'
 import { formatCurrency, formatDateLong } from '@/lib/utils'
 import { parseCurrencyParam, defaultGLAccountCurrency } from '@/lib/reportCurrency'
 import { balancesAsOf, parseAsOfParam } from '@/lib/glBalances'
-import { resolveReportRange } from '@/lib/reportRange'
+import { resolveReportRange, resolveCustomReportRange } from '@/lib/reportRange'
 import ReportLayout from '@/components/reports/ReportLayout'
 import { getCompanySettings } from '@/lib/company'
 
@@ -35,16 +35,24 @@ export default async function BalanceSheetReport({
   const expenses = accounts.filter((a) => a.accountClass === 'expense')
 
   // "As of" date: an explicit ?asOf wins; otherwise the selected period preset's
-  // end-date — so the "Last Month" tab and the Date Range dropdown (which set
-  // ?preset, not ?asOf) actually move the statement date; with neither, today.
-  // (Matches how the Trial Balance report resolves its as-of date.)
+  // end-date (so the "Last Month" tab and the Date Range dropdown actually move
+  // the statement date — they set ?preset, which this page previously ignored);
+  // with neither, default to today. Mirrors the Trial Balance report.
+  // An explicit ?start&end custom range is honoured next — its end date is the
+  // statement date. `custom` is not a case in resolveReportRange, so without this
+  // a custom range fell through to this-year and the picker was silently ignored.
   const preset = typeof p.preset === 'string' ? p.preset : undefined
+  const custom = resolveCustomReportRange(
+    typeof p.start === 'string' ? p.start : undefined,
+    typeof p.end === 'string' ? p.end : undefined
+  )
   const asOf =
     typeof p.asOf === 'string' || Array.isArray(p.asOf)
       ? parseAsOfParam(p.asOf)
-      : preset
-        ? resolveReportRange(preset).end
-        : parseAsOfParam(undefined)
+      : (custom?.end ??
+        (preset
+          ? resolveReportRange(preset, undefined, company.fiscalYearEnd).end
+          : parseAsOfParam(undefined)))
   const currentBalances = await balancesAsOf(accounts, asOf)
   const currentBal = (a: Account) => currentBalances.get(a.id) || 0
 
@@ -163,6 +171,7 @@ export default async function BalanceSheetReport({
         updatedBadge
         tabs={tabs}
         companyName={company.legalName || company.name}
+        fiscalYearEnd={company.fiscalYearEnd}
         showCompactToggle
       >
         <VsSection title="Assets" list={assets} total={totalAssets} priorTotal={priorTotalAssets} />
@@ -265,6 +274,7 @@ export default async function BalanceSheetReport({
       updatedBadge
       tabs={tabs}
       companyName={company.legalName || company.name}
+      fiscalYearEnd={company.fiscalYearEnd}
       showCompactToggle
     >
       <Section title="Assets" accounts={assets} total={totalAssets} />
