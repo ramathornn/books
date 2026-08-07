@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic'
 import type { Metadata } from 'next'
 import prisma from '@/lib/prisma'
 import { formatCurrency, formatDateLong } from '@/lib/utils'
-import { resolveReportRange } from '@/lib/reportRange'
+import { resolveReportRange, resolveCustomReportRange } from '@/lib/reportRange'
 import { parseCurrencyParam, defaultGLAccountCurrency } from '@/lib/reportCurrency'
 import { balancesAsOf, parseAsOfParam } from '@/lib/glBalances'
+import { getCompanySettings } from '@/lib/company'
 import ReportLayout from '@/components/reports/ReportLayout'
 import ExportForT2Button from './ExportForT2Button'
 
@@ -27,13 +28,21 @@ export default async function TrialBalanceReport({
   const p = await searchParams
   const preset = typeof p.preset === 'string' ? p.preset : 'last-month'
   const currency = parseCurrencyParam(p) || (await defaultGLAccountCurrency())
+  const company = await getCompanySettings()
 
-  // "As of" date: explicit asOf param wins; otherwise the selected preset's end
-  // (so the period tabs keep working); defaults to today via parseAsOfParam.
+  // "As of" date: explicit asOf param wins; then an explicit ?start&end custom
+  // range (its end date is the statement date — `custom` is not a case in
+  // resolveReportRange, so without this it would fall through to this-year and
+  // silently ignore the picker); otherwise the selected preset's end (so the
+  // period tabs keep working); defaults to today via parseAsOfParam.
+  const custom = resolveCustomReportRange(
+    typeof p.start === 'string' ? p.start : undefined,
+    typeof p.end === 'string' ? p.end : undefined
+  )
   const end =
     typeof p.asOf === 'string' || Array.isArray(p.asOf)
       ? parseAsOfParam(p.asOf)
-      : resolveReportRange(preset).end
+      : (custom?.end ?? resolveReportRange(preset, undefined, company.fiscalYearEnd).end)
 
   const accounts = await prisma.gLAccount.findMany({
     where: { isArchived: false, currency },
@@ -78,6 +87,7 @@ export default async function TrialBalanceReport({
         { value: 'last-quarter', label: 'Last Quarter' },
         { value: 'last-year', label: 'Last Year' },
       ]}
+      fiscalYearEnd={company.fiscalYearEnd}
     >
       <div className="flex justify-end mb-3 print:hidden">
         <ExportForT2Button />

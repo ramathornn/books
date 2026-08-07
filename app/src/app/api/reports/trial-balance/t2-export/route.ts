@@ -5,6 +5,7 @@ import { formatCsv } from '@/lib/csv'
 import { resolveReportRange } from '@/lib/reportRange'
 import { parseCurrencyParam, defaultGLAccountCurrency } from '@/lib/reportCurrency'
 import { balancesAsOf, parseAsOfParam } from '@/lib/glBalances'
+import { getCompanySettings } from '@/lib/company'
 
 /**
  * "Export for T2" — emits the trial balance as CSV keyed by GIFI code, ready to
@@ -25,8 +26,11 @@ export async function GET(request: NextRequest) {
     parseCurrencyParam({ currency: sp.get('currency') ?? undefined }) ||
     (await defaultGLAccountCurrency())
 
+  const company = await getCompanySettings()
   const asOfRaw = sp.get('asOf')
-  const end = asOfRaw ? parseAsOfParam(asOfRaw) : resolveReportRange(preset).end
+  const end = asOfRaw
+    ? parseAsOfParam(asOfRaw)
+    : resolveReportRange(preset, undefined, company.fiscalYearEnd).end
 
   const accounts = await prisma.gLAccount.findMany({
     where: { isArchived: false, currency },
