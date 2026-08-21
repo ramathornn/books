@@ -1,0 +1,1533 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CompanySettings {
+  id                  String   @id @default("singleton")
+  name                String   @default("Your Company")
+  legalName           String   @default("Your Company Inc.") @map("legal_name")
+  logoInitials        String   @default("YC") @map("logo_initials")
+  addressLine1        String   @default("") @map("address_line_1")
+  addressLine2        String   @default("") @map("address_line_2")
+  city                String   @default("")
+  province            String   @default("")
+  postalCode          String   @default("") @map("postal_code")
+  country             String   @default("")
+  phone               String   @default("")
+  email               String   @default("")
+  website             String   @default("")
+  defaultCurrency     String   @default("CAD") @map("default_currency")
+  defaultPaymentTerms String   @default("net30") @map("default_payment_terms")
+
+  defaultSalesAccountId      String? @map("default_sales_account_id")
+  defaultGstPayableAccountId String? @map("default_gst_payable_account_id")
+  realizedFxAccountId        String? @map("realized_fx_account_id")
+
+  // Wave 3 — tax filing identity + auto-pull account wiring
+  businessNumber                 String  @default("") @map("business_number")
+  rzAccountInfoReturns           String  @default("") @map("rz_account_info_returns")
+  craTransmitterNumber           String  @default("") @map("cra_transmitter_number")
+  gstNetfileAccessCode           String  @default("") @map("gst_netfile_access_code")
+  gstFilingFrequency             String  @default("quarterly") @map("gst_filing_frequency")
+  fiscalYearEndMonth             Int     @default(12) @map("fiscal_year_end_month")
+  fiscalYearEndDay               Int     @default(31) @map("fiscal_year_end_day")
+  dividendsDeclaredAccountId     String? @map("dividends_declared_account_id")
+  subcontractorExpenseAccountId  String? @map("subcontractor_expense_account_id")
+  // GL account whose expense is non-deductible (fines/penalties/interest on tax,
+  // ITA 18(1)(t)/67.5/67.6) — fully added back on T2 Schedule 1. Null ⇒ buildT2
+  // falls back to account number 6660.
+  nonDeductibleExpenseAccountId  String? @map("non_deductible_expense_account_id")
+  defaultItcReceivableAccountId  String? @map("default_itc_receivable_account_id")
+  sinEncryptionKeyVersion        Int     @default(1) @map("sin_encryption_key_version")
+
+  // Wave 4 — T2 corporate-return identity (additive, defaulted-empty).
+  // Alberta Corporate Account Number (CAN): TRA-issued, 10 numeric digits. The
+  // AT1 verify gate blocks prepare when this is empty (no real value seeded).
+  albertaCorporateAccountNumber  String  @default("") @map("alberta_corporate_account_number")
+  // Federal T2 program account = the 9-digit BN above + a corporate-income
+  // program suffix (RC0001 form: 2 letters + 4 digits). Defaults to BN+RC0001,
+  // confirmed once by the user. Stored as the FULL 15-char account string.
+  t2ProgramAccount               String  @default("") @map("t2_program_account")
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("company_settings")
+}
+
+model User {
+  id                           String          @id @default(uuid())
+  name                         String
+  email                        String          @unique
+  hashedPassword               String
+  // 'owner' — full access. 'accountant' — read-only everywhere: the proxy
+  // rejects every mutating /api request from an accountant session (403);
+  // only /api/auth/* self-service (password/2FA/passkeys) stays writable.
+  role                         String          @default("owner")
+  totpSecret                   String?         @map("totp_secret")
+  totpEnabled                  Boolean         @default(false) @map("totp_enabled")
+  passkeyPromptDismissed       Boolean         @default(false) @map("passkey_prompt_dismissed")
+  defaultOnlinePaymentsEnabled Boolean         @default(false) @map("default_online_payments_enabled")
+  defaultAllowPartialPayments  Boolean         @default(false) @map("default_allow_partial_payments")
+  authenticators               Authenticator[]
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @updatedAt
+}
+
+// Pending user invitation. The owner creates one in Settings → Users & Access
+// and shares the /invite/<token> link out-of-band; accepting it creates the
+// User with the invite's role and marks the invite consumed.
+model UserInvite {
+  id         String    @id @default(uuid())
+  email      String
+  role       String    @default("accountant") // owner | accountant
+  token      String    @unique // 64-char hex, single-use
+  expiresAt  DateTime  @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("user_invites")
+}
+
+model Authenticator {
+  id           String    @id @default(uuid())
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      Int       @default(0)
+  transports   String    @default("")
+  deviceName   String    @default("Passkey") @map("device_name")
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  @@index([userId])
+  @@map("authenticators")
+}
+
+model WebauthnLoginToken {
+  token     String   @id
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("webauthn_login_tokens")
+}
+
+model Client {
+  id           String      @id @default(uuid())
+  fbId         String?     @unique @map("fb_id")
+  firstName    String
+  lastName     String
+  organization String      @default("")
+  email        String      @default("")
+  phone        String      @default("")
+  address      String      @default("")
+  country      String      @default("")
+  vatId        String      @default("") @map("vat_id")
+  currency     String      @default("CAD")
+  internalNote String      @default("") @map("internal_note")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  invoices     Invoice[]
+  estimates    Estimate[]
+  payments     Payment[]
+  expenses     Expense[]
+  projects     Project[]
+  timeEntries  TimeEntry[]
+  taxParties   TaxParty[]
+
+  @@map("clients")
+}
+
+model Invoice {
+  id                    String            @id @default(uuid())
+  fbId                  String?           @unique @map("fb_id")
+  invoiceNumber         String            @unique @map("invoice_number")
+  status                String            @default("draft")
+  currency              String            @default("CAD")
+  dateIssued            DateTime          @map("date_issued")
+  dateDue               DateTime          @map("date_due")
+  subtotal              Decimal           @db.Decimal(12, 2)
+  taxTotal              Decimal           @default(0) @map("tax_total") @db.Decimal(12, 2)
+  total                 Decimal           @db.Decimal(12, 2)
+  amountPaid            Decimal           @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  amountDue             Decimal           @default(0) @map("amount_due") @db.Decimal(12, 2)
+  description           String            @default("")
+  reference             String            @default("")
+  notes                 String            @default("")
+  terms                 String            @default("")
+  shareToken            String            @unique @map("share_token")
+  clientId              String            @map("client_id")
+  client                Client            @relation(fields: [clientId], references: [id])
+  lineItems             InvoiceLineItem[]
+  payments              Payment[]
+  activities            InvoiceActivity[]
+  discount              Decimal           @default(0) @db.Decimal(12, 2)
+  sourceEstimateId      String?           @map("source_estimate_id")
+  onlinePaymentsEnabled Boolean           @default(false) @map("online_payments_enabled")
+  allowPartialPayments  Boolean           @default(false) @map("allow_partial_payments")
+
+  journalEntryId     String?       @unique @map("journal_entry_id")
+  journalEntry       JournalEntry? @relation("InvoiceAccrualJE", fields: [journalEntryId], references: [id])
+  voidJournalEntryId String?       @map("void_journal_entry_id")
+  voidedAt           DateTime?     @map("voided_at")
+  // Bad-debt write-off: status may become 'bad_debt'; records the AR write-off JE.
+  writtenOffAt         DateTime? @map("written_off_at")
+  writeOffJournalEntryId String? @map("write_off_journal_entry_id")
+  fxRate             Decimal?      @map("fx_rate") @db.Decimal(18, 8)
+  fxRateSource       String        @default("") @map("fx_rate_source")
+  fxRateDate         DateTime?     @map("fx_rate_date")
+  cadTotal           Decimal?      @map("cad_total") @db.Decimal(12, 2)
+  cadSubtotal        Decimal?      @map("cad_subtotal") @db.Decimal(12, 2)
+  cadTaxTotal        Decimal?      @map("cad_tax_total") @db.Decimal(12, 2)
+  cadReliefToDate    Decimal       @default(0) @map("cad_relief_to_date") @db.Decimal(12, 2)
+
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([invoiceNumber])
+  @@index([clientId])
+  @@index([status])
+  @@index([dateIssued])
+  @@index([shareToken])
+  @@index([currency])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(uuid())
+  title       String   @default("")
+  description String   @default("")
+  rate        Decimal  @db.Decimal(12, 2)
+  quantity    Decimal  @db.Decimal(12, 2)
+  lineTotal   Decimal  @map("line_total") @db.Decimal(12, 2)
+  taxCodes    String[] @map("tax_codes")
+  invoiceId   String   @map("invoice_id")
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  @@map("invoice_line_items")
+}
+
+model Estimate {
+  id             String             @id @default(uuid())
+  fbId           String?            @unique @map("fb_id")
+  estimateNumber String             @unique @map("estimate_number")
+  status         String             @default("draft")
+  currency       String             @default("CAD")
+  dateIssued     DateTime           @map("date_issued")
+  subtotal       Decimal            @db.Decimal(12, 2)
+  taxTotal       Decimal            @default(0) @map("tax_total") @db.Decimal(12, 2)
+  total          Decimal            @db.Decimal(12, 2)
+  description    String             @default("")
+  notes          String             @default("")
+  terms          String             @default("")
+  shareToken     String             @unique @map("share_token")
+  clientId       String             @map("client_id")
+  client         Client             @relation(fields: [clientId], references: [id])
+  lineItems      EstimateLineItem[]
+  response       EstimateResponse?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([estimateNumber])
+  @@index([clientId])
+  @@index([status])
+  @@index([dateIssued])
+  @@index([shareToken])
+  @@map("estimates")
+}
+
+model EstimateResponse {
+  id          String   @id @default(uuid())
+  estimateId  String   @unique @map("estimate_id")
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  status      String // accepted or declined
+  signerName  String   @map("signer_name")
+  signerEmail String   @map("signer_email")
+  ipAddress   String   @default("") @map("ip_address")
+  userAgent   String   @default("") @map("user_agent")
+  createdAt   DateTime @default(now())
+
+  @@index([estimateId])
+  @@map("estimate_responses")
+}
+
+model EstimateLineItem {
+  id          String   @id @default(uuid())
+  title       String   @default("")
+  description String   @default("")
+  rate        Decimal  @db.Decimal(12, 2)
+  quantity    Decimal  @db.Decimal(12, 2)
+  lineTotal   Decimal  @map("line_total") @db.Decimal(12, 2)
+  taxCodes    String[] @map("tax_codes")
+  estimateId  String   @map("estimate_id")
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  @@map("estimate_line_items")
+}
+
+model Payment {
+  id                    String   @id @default(uuid())
+  paymentDate           DateTime @map("payment_date")
+  paymentMethod         String   @map("payment_method")
+  amount                Decimal  @db.Decimal(12, 2)
+  currency              String   @default("CAD")
+  notes                 String   @default("")
+  status                String   @default("paid")
+  source                String   @default("manual") // manual | stripe
+  stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id")
+  stripeChargeId        String?  @map("stripe_charge_id")
+  stripeStatus          String?  @map("stripe_status")
+  invoiceId             String   @map("invoice_id")
+  invoice               Invoice  @relation(fields: [invoiceId], references: [id])
+  clientId              String   @map("client_id")
+  client                Client   @relation(fields: [clientId], references: [id])
+
+  cadAmount        Decimal?  @map("cad_amount") @db.Decimal(12, 2)
+  cadArRelief      Decimal?  @map("cad_ar_relief") @db.Decimal(12, 2)
+  fxRate           Decimal?  @map("fx_rate") @db.Decimal(18, 8)
+  fxRateDate       DateTime? @map("fx_rate_date")
+  journalEntryId   String?   @unique @map("journal_entry_id")
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([clientId])
+  @@index([paymentDate])
+  @@index([stripePaymentIntentId])
+  @@map("payments")
+}
+
+// Reusable message bodies for "Send by Email" — may contain shortcodes:
+// {{invoice.link}}, {{link:label|href}}, {{invoice.number}}, {{invoice.amount}}, {{invoice.dueDate}}
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  subject   String   @default("")
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+model InvoiceActivity {
+  id          String   @id @default(uuid())
+  invoiceId   String   @map("invoice_id")
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  type        String // created, sent, viewed, payment_added, emailed
+  description String
+  amount      Decimal? @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+  @@map("invoice_activities")
+}
+
+model Item {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @default("")
+  rate        Decimal  @db.Decimal(12, 2)
+  taxes       String   @default("")
+  category    String   @default("service")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("items")
+}
+
+model TeamMember {
+  id          String      @id @default(uuid())
+  firstName   String      @map("first_name")
+  lastName    String      @map("last_name")
+  email       String      @unique
+  jobTitle    String?     @map("job_title")
+  role        String      @default("employee") // owner | admin | employee
+  status      String      @default("active") // active | deleted
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  timeEntries TimeEntry[]
+
+  @@map("team_members")
+}
+
+// ---------- EXPENSES ----------
+
+model ExpenseCategory {
+  id          String            @id @default(uuid())
+  name        String
+  groupName   String            @default("Operating Expenses") @map("group_name")
+  parentId    String?           @map("parent_id")
+  parent      ExpenseCategory?  @relation("ExpenseCategorySubs", fields: [parentId], references: [id])
+  children    ExpenseCategory[] @relation("ExpenseCategorySubs")
+  glAccountId String?           @map("gl_account_id")
+  glAccount   GLAccount?        @relation(fields: [glAccountId], references: [id])
+  isArchived  Boolean           @default(false) @map("is_archived")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  expenses    Expense[]
+  vendors     Vendor[]
+
+  @@unique([name, groupName])
+  @@map("expense_categories")
+}
+
+model Vendor {
+  id                String           @id @default(uuid())
+  name              String           @unique
+  displayName       String           @default("") @map("display_name")
+  contactName       String           @default("") @map("contact_name")
+  email             String           @default("")
+  phone             String           @default("")
+  website           String           @default("")
+  address           String           @default("")
+  gstNumber         String           @default("") @map("gst_number")
+  defaultCategoryId String?          @map("default_category_id")
+  defaultCategory   ExpenseCategory? @relation(fields: [defaultCategoryId], references: [id])
+  defaultTaxCodeId  String?          @map("default_tax_code_id")
+  defaultPayee      String           @default("") @map("default_payee")
+  isContractor      Boolean          @default(false) @map("is_contractor") // tracks T4A eligibility for future
+  isArchived        Boolean          @default(false) @map("is_archived")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  expenses          Expense[]
+  bills             Bill[]
+  taxParties        TaxParty[]
+  aliases           VendorAlias[]
+
+  @@map("vendors")
+}
+
+/// Learned merchant-descriptor → Vendor mappings. A cryptic bank descriptor
+/// ("DNH*GODADDY") is normalised to a key and, once a human (or an auto-apply
+/// rule) confirms which vendor it is, remembered here so the next import of the
+/// same descriptor resolves the vendor with zero guessing. Purely additive — the
+/// normalised merchant text is derived in-memory from a BankTransaction's
+/// payee/description, never stored on the transaction itself.
+model VendorAlias {
+  id            String   @id @default(uuid())
+  normalizedKey String   @unique @map("normalized_key") // norm(merchant text), e.g. "dnhgodaddy"
+  vendorId      String   @map("vendor_id")
+  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  source        String   @default("") // "confirm" | "rule" | "auto" (provenance)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("vendor_aliases")
+}
+
+model Expense {
+  id                 String          @id @default(uuid())
+  date               DateTime
+  amount             Decimal         @db.Decimal(12, 2)
+  taxAmount          Decimal         @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  total              Decimal         @db.Decimal(12, 2)
+  currency           String          @default("CAD")
+  description        String          @default("")
+  notes              String          @default("")
+  status             String          @default("pending") // pending | billable | non-billable | invoiced
+  source             String          @default("")
+  receiptUrl         String          @default("") @map("receipt_url")
+  isBillable         Boolean         @default(false) @map("is_billable")
+  isRecurring        Boolean         @default(false) @map("is_recurring")
+  isArchived         Boolean         @default(false) @map("is_archived")
+  isReceiptDraft     Boolean         @default(false) @map("is_receipt_draft") // for the receipts inbox flow
+  recurringFrequency String?         @map("recurring_frequency") // daily | weekly | monthly | quarterly | annually
+  recurringEndDate   DateTime?       @map("recurring_end_date")
+  categoryId         String          @map("category_id")
+  category           ExpenseCategory @relation(fields: [categoryId], references: [id])
+  vendorId           String?         @map("vendor_id")
+  vendor             Vendor?         @relation(fields: [vendorId], references: [id])
+  clientId           String?         @map("client_id")
+  client             Client?         @relation(fields: [clientId], references: [id])
+  projectId          String?         @map("project_id")
+  project            Project?        @relation(fields: [projectId], references: [id])
+  taxCodeId          String?         @map("tax_code_id")
+  storedFiles        StoredFile[]    // receipt files filed into the Files manager
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([date])
+  @@index([categoryId])
+  @@index([clientId])
+  @@index([status])
+  @@map("expenses")
+}
+
+// ---------- PROJECTS & TIME TRACKING ----------
+
+model Project {
+  id          String      @id @default(uuid())
+  name        String
+  description String      @default("")
+  clientId    String?     @map("client_id")
+  client      Client?     @relation(fields: [clientId], references: [id])
+  hourlyRate  Decimal?    @map("hourly_rate") @db.Decimal(10, 2)
+  currency    String      @default("CAD")
+  isArchived  Boolean     @default(false) @map("is_archived")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  timeEntries TimeEntry[]
+  expenses    Expense[]
+
+  @@index([clientId])
+  @@map("projects")
+}
+
+model Service {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  description String      @default("")
+  hourlyRate  Decimal?    @map("hourly_rate") @db.Decimal(10, 2)
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  timeEntries TimeEntry[]
+
+  @@map("services")
+}
+
+model TimeEntry {
+  id              String      @id @default(uuid())
+  date            DateTime
+  durationMinutes Int         @map("duration_minutes")
+  description     String      @default("")
+  notes           String      @default("")
+  isBillable      Boolean     @default(true) @map("is_billable")
+  isTimerBased    Boolean     @default(false) @map("is_timer_based")
+  isInvoiced      Boolean     @default(false) @map("is_invoiced")
+  invoiceId       String?     @map("invoice_id")
+  rate            Decimal?    @db.Decimal(10, 2)
+  currency        String      @default("CAD")
+  teamMemberId    String?     @map("team_member_id")
+  teamMember      TeamMember? @relation(fields: [teamMemberId], references: [id])
+  clientId        String?     @map("client_id")
+  client          Client?     @relation(fields: [clientId], references: [id])
+  projectId       String?     @map("project_id")
+  project         Project?    @relation(fields: [projectId], references: [id])
+  serviceId       String?     @map("service_id")
+  service         Service?    @relation(fields: [serviceId], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([date])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([teamMemberId])
+  @@map("time_entries")
+}
+
+// ---------- ACCOUNTING ----------
+
+model GLAccount {
+  id                 String             @id @default(uuid())
+  accountNumber      String             @unique @map("account_number")
+  accountName        String             @map("account_name")
+  description        String             @default("")
+  accountClass       String             @map("account_class") // asset | liability | equity | income | expense
+  accountSubclass    String             @default("") @map("account_subclass")
+  detailType         String             @default("") @map("detail_type") // e.g. Bank, Accounts receivable (A/R), Credit Card, Other Current Liabilities, Long-term Liabilities, Property, plant and equipment, Income, Other Income, Cost of Goods Sold, Expenses, Other Expense, Equity, Current assets
+  gifiCode           String?            @map("gifi_code") // CRA General Index of Financial Information 4-digit code (T2 mapping); nullable — accountant completes from prior-year T2
+  // T2 active/passive split for the CCPC machinery (AII / ART / RDTOH / Part IV /
+  // SBD grind). Values: 'active' | 'investment' | 'capitalGains'. Null = not yet
+  // classified — the GIFI pre-flight DEFAULTS operating income/expense accounts
+  // to 'active' and only forces a choice for passive-looking accounts (Other
+  // Income, or interest/dividend/rental/royalty/gain). When everything is active,
+  // AII=0 so ART/RDTOH/Part IV/dividend-refund all degrade to 0.
+  incomeNature       String?            @map("income_nature")
+  // Statement of Cash Flows section override: 'operating' | 'investing' | 'financing'.
+  // Null = derive automatically (see lib/reports/cashFlow.ts classifier).
+  cashFlowSection    String?            @map("cash_flow_section")
+  parentId           String?            @map("parent_id")
+  parent             GLAccount?         @relation("GLAccountHierarchy", fields: [parentId], references: [id])
+  children           GLAccount[]        @relation("GLAccountHierarchy")
+  currency           String             @default("CAD")
+  isReconcilable     Boolean            @default(false) @map("is_reconcilable")
+  isActive           Boolean            @default(true) @map("is_active")
+  isArchived         Boolean            @default(false) @map("is_archived")
+  openingBalance     Decimal            @default(0) @map("opening_balance") @db.Decimal(15, 2)
+  openingBalanceDate DateTime?          @map("opening_balance_date")
+  currentBalance     Decimal            @default(0) @map("current_balance") @db.Decimal(15, 2)
+  defaultTaxCodeId   String?            @map("default_tax_code_id")
+  defaultTaxCode     TaxCode?           @relation(fields: [defaultTaxCodeId], references: [id])
+  sortOrder          Int                @default(0) @map("sort_order")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  journalLines       JournalEntryLine[]
+  expenseCategories  ExpenseCategory[]
+  bankAccount        BankAccount?
+
+  @@index([accountClass])
+  @@index([detailType])
+  @@map("gl_accounts")
+}
+
+model TaxCode {
+  id                  String      @id @default(uuid())
+  code                String      @unique // GST_INCOME, GST_EXPENSE, ZERO_RATED, OUT_OF_SCOPE, MEALS_50
+  name                String // human display: "GST on Income", "GST on Expenses", etc.
+  description         String      @default("")
+  rate                Decimal     @default(0) @db.Decimal(6, 4) // 0.0500 for 5%
+  appliesTo           String      @default("both") // sale | purchase | both
+  isReportable        Boolean     @default(true) @map("is_reportable") // appears on GST/HST filing
+  isRecoverable       Boolean     @default(true) @map("is_recoverable") // ITC eligible
+  deductiblePct       Decimal     @default(100) @map("deductible_pct") @db.Decimal(5, 2) // 50 for Meals
+  payableAccountId    String?     @map("payable_account_id") // GL for tax collected (e.g. 2315 GST/HST Payable)
+  receivableAccountId String?     @map("receivable_account_id") // GL for ITC receivable
+  isArchived          Boolean     @default(false) @map("is_archived")
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  glAccounts          GLAccount[]
+
+  @@map("tax_codes")
+}
+
+model JournalEntry {
+  id          String             @id @default(uuid())
+  entryNumber String             @unique @map("entry_number")
+  entryDate   DateTime           @map("entry_date")
+  description String             @default("")
+  memo        String             @default("")
+  status      String             @default("draft") // draft | posted | void
+  totalDebit  Decimal            @default(0) @map("total_debit") @db.Decimal(15, 2)
+  totalCredit Decimal            @default(0) @map("total_credit") @db.Decimal(15, 2)
+  postedAt    DateTime?          @map("posted_at")
+
+  kind           String        @default("standard") @map("kind")
+  // Client-supplied dedupe key (e.g. declare-dividend). Unique, so a retried
+  // request can never book the same economic event twice.
+  idempotencyKey String?       @unique @map("idempotency_key")
+  // For kind=='dividend' only: tags the declaration as 'eligible' | 'nonEligible' so
+  // T5 generation routes the actual amount to the correct boxes (eligible -> 24/25/26;
+  // non-eligible -> 10/11/12) and the T1 pull can derive the 12000/12010/40425 split.
+  // Null on every non-dividend entry.
+  dividendEligibility String?    @map("dividend_eligibility")
+  reversesId     String?       @unique @map("reverses_id")
+  reverses       JournalEntry? @relation("JEReversal", fields: [reversesId], references: [id])
+  reversal       JournalEntry? @relation("JEReversal")
+  reversedAt     DateTime?     @map("reversed_at")
+  reversedReason String?       @map("reversed_reason")
+  invoiceAccrual Invoice?      @relation("InvoiceAccrualJE")
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  lines       JournalEntryLine[]
+
+  @@index([entryDate])
+  @@index([status])
+  @@index([reversesId])
+  @@map("journal_entries")
+}
+
+model JournalEntryLine {
+  id             String       @id @default(uuid())
+  journalEntryId String       @map("journal_entry_id")
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  glAccountId    String       @map("gl_account_id")
+  glAccount      GLAccount    @relation(fields: [glAccountId], references: [id])
+  description    String       @default("")
+  debit          Decimal      @default(0) @db.Decimal(15, 2)
+  credit         Decimal      @default(0) @db.Decimal(15, 2)
+  taxCodeId      String?      @map("tax_code_id")
+  sortOrder      Int          @default(0) @map("sort_order")
+
+  @@index([journalEntryId])
+  @@index([glAccountId])
+  @@map("journal_entry_lines")
+}
+
+model FxRate {
+  id         String   @id @default(uuid())
+  currency   String
+  rateDate   DateTime @map("rate_date") @db.Date
+  cadPerUnit Decimal  @map("cad_per_unit") @db.Decimal(18, 8)
+  source     String   @default("boc_valet")
+  seriesName String   @default("") @map("series_name")
+  fetchedAt  DateTime @default(now()) @map("fetched_at")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([currency, rateDate])
+  @@index([currency, rateDate])
+  @@map("fx_rates")
+}
+
+model BankAccount {
+  id                  String            @id @default(uuid())
+  glAccountId         String            @unique @map("gl_account_id")
+  glAccount           GLAccount         @relation(fields: [glAccountId], references: [id])
+  bankName            String            @map("bank_name")
+  accountNumberMasked String            @default("") @map("account_number_masked")
+  accountHolder       String            @default("") @map("account_holder")
+  accountType         String            @default("checking") @map("account_type") // checking | savings | credit_card | cash | wallet
+  statementClosingDay Int?              @map("statement_closing_day") // day of month statement closes
+  isConnected         Boolean           @default(false) @map("is_connected")
+  lastSyncAt          DateTime?         @map("last_sync_at")
+  lastReconciledAt    DateTime?         @map("last_reconciled_at")
+  reconciledBalance   Decimal           @default(0) @map("reconciled_balance") @db.Decimal(15, 2)
+  isArchived          Boolean           @default(false) @map("is_archived")
+  sortOrder           Int               @default(0) @map("sort_order")
+  // Plaid link: which Plaid Item (institution connection) + Plaid account this
+  // maps to, and the earliest date to pull transactions from.
+  plaidItemId         String?           @map("plaid_item_id")
+  plaidItem           PlaidItem?        @relation(fields: [plaidItemId], references: [id])
+  plaidAccountId      String?           @map("plaid_account_id")
+  plaidSyncFrom       DateTime?         @map("plaid_sync_from")
+  // Live balance pulled from Plaid on each sync (the bank's reported balance,
+  // to reconcile against the book balance / GLAccount.currentBalance).
+  plaidCurrentBalance   Decimal?        @map("plaid_current_balance") @db.Decimal(15, 2)
+  plaidAvailableBalance Decimal?        @map("plaid_available_balance") @db.Decimal(15, 2)
+  plaidBalanceAt        DateTime?       @map("plaid_balance_at")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  transactions        BankTransaction[]
+
+  @@index([plaidItemId])
+  @@map("bank_accounts")
+}
+
+// One Plaid "Item" = one connection to a financial institution (which may
+// expose several accounts). The access token is stored encrypted at rest.
+model PlaidItem {
+  id              String        @id @default(uuid())
+  itemId          String        @unique @map("item_id")
+  institutionId   String        @default("") @map("institution_id")
+  institutionName String        @default("") @map("institution_name")
+  accessTokenEnc  String        @map("access_token_enc") // AES-256-GCM, see lib/crypto
+  cursor          String?       // /transactions/sync cursor
+  status          String        @default("active") // active | login_required | error | disconnected
+  lastError       String?       @map("last_error")
+  lastSyncAt      DateTime?     @map("last_sync_at")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  bankAccounts    BankAccount[]
+
+  @@map("plaid_items")
+}
+
+// A connected Stripe account used as a READ-ONLY revenue source: its balance
+// transactions (charges, fees, refunds, payouts) are synced into per-charge
+// journal entries. Mirrors PlaidItem (a bank source) — the restricted key is
+// stored encrypted at rest (lib/crypto), and the GL account mapping is held
+// per-connection so the posting model writes into this tenant's own chart of
+// accounts rather than any hardcoded ids.
+model StripeConnection {
+  id           String @id @default(uuid())
+  displayName  String @default("") @map("display_name")
+  accountId    String @default("") @map("stripe_account_id") // acct_… (informational)
+  secretKeyEnc String @map("secret_key_enc") // restricted read-only key, AES-256-GCM
+
+  // GL account mapping (GLAccount ids) the posting model writes to.
+  revenueAccountId           String @map("revenue_account_id")
+  feeAccountId               String @map("fee_account_id")
+  clearingAccountId          String @map("clearing_account_id")
+  gstPayableAccountId        String @map("gst_payable_account_id")
+  payoutDestinationAccountId String @map("payout_destination_account_id")
+  gstTaxCodeId               String @map("gst_tax_code_id")
+  zeroRatedTaxCodeId         String @map("zero_rated_tax_code_id")
+
+  cursor     String? // last balance-transaction id synced (incremental poll)
+  status     String    @default("active") // active | error | disconnected
+  lastError  String?   @map("last_error")
+  lastSyncAt DateTime? @map("last_sync_at")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("stripe_connections")
+}
+
+model BankTransaction {
+  id                      String      @id @default(uuid())
+  bankAccountId           String      @map("bank_account_id")
+  bankAccount             BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactionDate         DateTime    @map("transaction_date")
+  description             String      @default("")
+  amount                  Decimal     @db.Decimal(15, 2) // negative = money out, positive = money in
+  balanceAfter            Decimal?    @map("balance_after") @db.Decimal(15, 2)
+  status                  String      @default("pending") // pending | posted | excluded
+  payee                   String      @default("")
+  memo                    String      @default("")
+  categoryId              String?     @map("category_id") // ExpenseCategory or GLAccount id (for income)
+  categoryGlAccountId     String?     @map("category_gl_account_id")
+  vendorId                String?     @map("vendor_id")
+  taxCodeId               String?     @map("tax_code_id")
+  journalEntryId          String?     @map("journal_entry_id")
+  matchedInvoiceId        String?     @map("matched_invoice_id")
+  matchedPaymentId        String?     @map("matched_payment_id")
+  matchedExpenseId        String?     @map("matched_expense_id")
+  bankImportRuleId        String?     @map("bank_import_rule_id")
+  importBatchId           String?     @map("import_batch_id")
+  dedupeHash              String?     @map("dedupe_hash")
+  plaidTransactionId      String?     @map("plaid_transaction_id") // Plaid transaction_id; upsert/remove key for synced rows
+  transferPairId          String?     @map("transfer_pair_id") // links the two sides of a posted account-to-account transfer
+  isReconciled            Boolean     @default(false) @map("is_reconciled")
+  reconciledAt            DateTime?   @map("reconciled_at")
+  reconciliationSessionId String?     @map("reconciliation_session_id")
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @default(now()) @updatedAt
+
+  // Unique per account: Plaid's transaction_id is the canonical upsert/remove key.
+  // Nullable, so non-Plaid (CSV/manual) rows — which leave this NULL — are exempt
+  // (Postgres treats NULLs as distinct). Guards against a re-sent id being inserted
+  // twice by a sync race; the importer also collapses within-batch repeats.
+  @@unique([bankAccountId, plaidTransactionId])
+  @@index([bankAccountId])
+  @@index([transactionDate])
+  @@index([status])
+  @@index([dedupeHash])
+  @@index([transferPairId])
+  @@map("bank_transactions")
+}
+
+model Mileage {
+  id           String   @id @default(uuid())
+  date         DateTime
+  fromAddress  String   @default("") @map("from_address")
+  toAddress    String   @default("") @map("to_address")
+  kilometres   Decimal  @db.Decimal(10, 2)
+  purpose      String   @default("")
+  vehicleLabel String   @default("") @map("vehicle_label") // free-text since we don't model Vehicle as its own entity
+  ratePerKm    Decimal  @default(0.70) @map("rate_per_km") @db.Decimal(10, 4) // CRA 2025: $0.70/km first 5000km
+  amount       Decimal  @db.Decimal(12, 2) // computed = kilometres * ratePerKm
+  expenseId    String?  @map("expense_id") // set when materialized as an Expense
+  isArchived   Boolean  @default(false) @map("is_archived")
+  notes        String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+  @@map("mileage_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  userName   String   @default("") @map("user_name")
+  entityType String   @map("entity_type") // invoice | bill | expense | journal_entry | bank_transaction | gl_account | reconciliation | tax_return | period_lock
+  entityId   String   @map("entity_id")
+  action     String // create | update | delete | post | void | categorize | match | reconcile | finish | exclude | unpost | run
+  summary    String   @default("") // short human description
+  before     Json? // optional payload snapshot before
+  after      Json? // optional payload snapshot after
+  metadata   Json? // arbitrary tags
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([entityType, createdAt])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+model AccountingPeriod {
+  id            String    @id @default("singleton")
+  // Books are locked through this date inclusive. Null = nothing locked.
+  lockedThrough DateTime? @map("locked_through")
+  lockedAt      DateTime? @map("locked_at")
+  lockedById    String?   @map("locked_by_id")
+  notes         String    @default("")
+  updatedAt     DateTime  @updatedAt
+
+  @@map("accounting_periods")
+}
+
+model TaxReturn {
+  id                       String    @id @default(uuid())
+  type                     String    @default("GST/HST") // GST/HST | Provincial Sales Tax
+  periodStart              DateTime  @map("period_start")
+  periodEnd                DateTime  @map("period_end")
+  collectedAmount          Decimal   @default(0) @map("collected_amount") @db.Decimal(15, 2)
+  paidAmount               Decimal   @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  adjustment               Decimal   @default(0) @db.Decimal(15, 2)
+  netAmount                Decimal   @default(0) @map("net_amount") @db.Decimal(15, 2)
+  status                   String    @default("draft") // draft | prepared | filed | paid | void
+  preparedAt               DateTime? @map("prepared_at")
+  filedAt                  DateTime? @map("filed_at")
+  paidAt                   DateTime? @map("paid_at")
+  remitJournalEntryId      String?   @map("remit_journal_entry_id")
+  paymentBankTransactionId String?   @map("payment_bank_transaction_id")
+  // Wave 3 — GST34 worksheet extensions
+  filingFrequency          String    @default("quarterly") @map("filing_frequency")
+  reportingMethod          String    @default("regular") @map("reporting_method")
+  gst34Detail              Json?     @map("gst34_detail") // frozen snapshot {line101..115, sources:{...}}
+  printableStoredFileId    String?   @map("printable_stored_file_id") // plain id, NO StoredFile relation
+  notes                    String    @default("")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@unique([type, periodStart, periodEnd])
+  @@index([status])
+  @@map("tax_returns")
+}
+
+model ReconciliationSession {
+  id                 String    @id @default(uuid())
+  bankAccountId      String    @map("bank_account_id")
+  statementStartDate DateTime  @map("statement_start_date")
+  statementEndDate   DateTime  @map("statement_end_date")
+  beginningBalance   Decimal   @map("beginning_balance") @db.Decimal(15, 2)
+  endingBalance      Decimal   @map("ending_balance") @db.Decimal(15, 2)
+  status             String    @default("in_progress") // in_progress | completed | abandoned
+  completedAt        DateTime? @map("completed_at")
+  completedById      String?   @map("completed_by_id")
+  clearedDebits      Decimal   @default(0) @map("cleared_debits") @db.Decimal(15, 2)
+  clearedCredits     Decimal   @default(0) @map("cleared_credits") @db.Decimal(15, 2)
+  notes              String    @default("")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([bankAccountId])
+  @@index([status])
+  @@map("reconciliation_sessions")
+}
+
+// Per bank account + month lock. Blocks edits to a reconciled month for that
+// account. Unique on (bankAccountId, periodStart).
+model ReconciliationLock {
+  id            String   @id @default(uuid())
+  bankAccountId String   @map("bank_account_id")
+  periodStart   DateTime @map("period_start") @db.Date
+  periodEnd     DateTime @map("period_end") @db.Date
+  lockedAt      DateTime @default(now()) @map("locked_at")
+  lockedBy      String?  @map("locked_by")
+
+  @@unique([bankAccountId, periodStart])
+  @@index([bankAccountId])
+  @@map("reconciliation_locks")
+}
+
+// Records a year-end close run: rolls net income into retained earnings.
+model FiscalYearClose {
+  id                       String   @id @default(uuid())
+  fiscalYear               Int      @unique @map("fiscal_year")
+  closedAt                 DateTime @default(now()) @map("closed_at")
+  closingJournalEntryId    String?  @map("closing_journal_entry_id")
+  retainedEarningsAccountId String? @map("retained_earnings_account_id")
+  netIncome                Decimal  @default(0) @map("net_income") @db.Decimal(15, 2)
+
+  @@map("fiscal_year_closes")
+}
+
+model Bill {
+  id             String         @id @default(uuid())
+  billNumber     String         @unique @map("bill_number")
+  vendorId       String?        @map("vendor_id")
+  vendor         Vendor?        @relation(fields: [vendorId], references: [id])
+  billDate       DateTime       @map("bill_date")
+  dueDate        DateTime       @map("due_date")
+  currency       String         @default("CAD")
+  subtotal       Decimal        @default(0) @db.Decimal(12, 2)
+  taxTotal       Decimal        @default(0) @map("tax_total") @db.Decimal(12, 2)
+  total          Decimal        @default(0) @db.Decimal(12, 2)
+  amountPaid     Decimal        @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  amountDue      Decimal        @default(0) @map("amount_due") @db.Decimal(12, 2)
+  status         String         @default("draft") // draft | open | partial | paid | void
+  notes          String         @default("")
+  reference      String         @default("")
+  journalEntryId String?        @map("journal_entry_id")
+  postedAt       DateTime?      @map("posted_at")
+  isArchived     Boolean        @default(false) @map("is_archived")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  lines          BillLineItem[]
+  payments       BillPayment[]
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("bills")
+}
+
+model BillLineItem {
+  id                  String  @id @default(uuid())
+  billId              String  @map("bill_id")
+  bill                Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  description         String  @default("")
+  amount              Decimal @db.Decimal(12, 2)
+  taxAmount           Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  categoryGlAccountId String? @map("category_gl_account_id")
+  taxCodeId           String? @map("tax_code_id")
+  sortOrder           Int     @default(0) @map("sort_order")
+
+  @@index([billId])
+  @@map("bill_line_items")
+}
+
+model BillPayment {
+  id                String   @id @default(uuid())
+  billId            String   @map("bill_id")
+  bill              Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  paymentDate       DateTime @map("payment_date")
+  amount            Decimal  @db.Decimal(12, 2)
+  bankAccountId     String?  @map("bank_account_id")
+  bankTransactionId String?  @map("bank_transaction_id")
+  journalEntryId    String?  @map("journal_entry_id")
+  paymentMethod     String   @default("Bank Transfer") @map("payment_method")
+  reference         String   @default("")
+  createdAt         DateTime @default(now())
+
+  @@index([billId])
+  @@index([paymentDate])
+  @@map("bill_payments")
+}
+
+model RecurringTemplate {
+  id              String    @id @default(uuid())
+  templateName    String    @map("template_name")
+  transactionType String    @map("transaction_type") // invoice | bill | expense | journal_entry
+  intervalUnit    String    @map("interval_unit") // day | week | month | quarter | year
+  intervalCount   Int       @default(1) @map("interval_count")
+  mode            String    @default("reminder") // auto_create | reminder | unscheduled
+  startDate       DateTime  @map("start_date")
+  endDate         DateTime? @map("end_date")
+  nextRunDate     DateTime? @map("next_run_date")
+  previousRunDate DateTime? @map("previous_run_date")
+  payload         Json      @default("{}")
+  isActive        Boolean   @default(true) @map("is_active")
+  runCount        Int       @default(0) @map("run_count")
+  notes           String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([nextRunDate])
+  @@index([isActive])
+  @@map("recurring_templates")
+}
+
+model BankRule {
+  id                  String    @id @default(uuid())
+  name                String
+  priority            Int       @default(0)
+  // Scope:
+  moneyDirection      String    @default("both") // in | out | both
+  accountScope        String    @default("all") // all | specific
+  // When accountScope='specific', list of bank account IDs (kept as JSON array of strings)
+  accountIds          String[]  @default([]) @map("account_ids")
+  // Match logic:
+  conditionLogic      String    @default("any") // all | any
+  conditions          Json      @default("[]") // [{field: bankText|description|amount|amountSign|date, op, value}]
+  // Simple text-match shorthand (alongside structured `conditions`):
+  pattern             String    @default("") // text to match against the bank description/text
+  matchType           String    @default("contains") // exact | contains | regex
+  // Action:
+  thenTransactionType String    @default("expense") @map("then_transaction_type") // expense | income | transfer | exclude
+  categoryGlAccountId String?   @map("category_gl_account_id")
+  categoryId          String?   @map("category_id") // ExpenseCategory FK (display only)
+  vendorId            String?   @map("vendor_id")
+  payee               String    @default("")
+  taxCodeId           String?   @map("tax_code_id")
+  memo                String    @default("")
+  memoAppend          String    @default("") @map("memo_append")
+  splits              Json      @default("[]") // [{categoryGlAccountId, amount, percent, taxCodeId}] — empty array means single line
+  autoAdd             Boolean   @default(false) @map("auto_add")
+  isActive            Boolean   @default(true) @map("is_active")
+  // Audit
+  matchCount          Int       @default(0) @map("match_count")
+  lastMatchedAt       DateTime? @map("last_matched_at")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([priority])
+  @@index([isActive])
+  @@map("bank_rules")
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  entityType   String   @map("entity_type") // invoice | expense | journal_entry | bank_transaction | bill
+  entityId     String   @map("entity_id")
+  fileName     String   @map("file_name")
+  storagePath  String   @map("storage_path") // relative to upload root
+  mimeType     String   @default("") @map("mime_type")
+  sizeBytes    Int      @default(0) @map("size_bytes")
+  uploadedById String?  @map("uploaded_by_id")
+  isArchived   Boolean  @default(false) @map("is_archived")
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("attachments")
+}
+
+// ---------- REPORTS ----------
+
+model FavoriteReport {
+  id        String   @id @default(uuid())
+  reportKey String   @unique @map("report_key")
+  createdAt DateTime @default(now())
+
+  @@map("favorite_reports")
+}
+
+// ---------- FILES ----------
+// A virtual file manager. Folders are DB-only (a tree via parentId); file bytes
+// live on disk under random names in a flat upload dir, so the client never
+// controls a filesystem path.
+
+model Folder {
+  id          String       @id @default(uuid())
+  name        String
+  parentId    String?      @map("parent_id")
+  parent      Folder?      @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]     @relation("FolderTree")
+  files       StoredFile[]
+  createdById String?      @map("created_by_id")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([parentId])
+  @@map("folders")
+}
+
+model StoredFile {
+  id           String   @id @default(uuid())
+  name         String
+  folderId     String?  @map("folder_id")
+  folder       Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  storagePath  String   @map("storage_path") // relative to upload root; generated, never client-supplied
+  mimeType     String   @default("") @map("mime_type")
+  sizeBytes    Int      @default(0) @map("size_bytes")
+  uploadedById String?  @map("uploaded_by_id")
+  // When a file is a receipt filed from the Receipts inbox, this links it back to
+  // the draft/real Expense it belongs to. Null for ordinary uploads.
+  expenseId    String?  @map("expense_id")
+  expense      Expense? @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([folderId])
+  @@index([expenseId])
+  @@map("stored_files")
+}
+
+// ============================================================================
+// Wave 3 — Tax modules (T5, T4A, CCA, filing exports)
+// Every *StoredFileId below is a plain String? resolved by id in app code —
+// intentionally NO StoredFile relation (avoids editing the shared StoredFile
+// model and the "missing opposite relation" prisma generate failure).
+// ============================================================================
+
+model TaxParty {
+  id             String   @id @default(uuid())
+  kind           String // individual | business
+  firstName      String   @default("") @map("first_name")
+  lastName       String   @default("") @map("last_name")
+  businessName   String   @default("") @map("business_name")
+  sinCipher      String?   @map("sin_cipher") // AES-GCM blob (iv:tag:ct), NEVER plaintext
+  sinLast3       String?   @map("sin_last3") // for display masking only
+  dateOfBirth    DateTime? @map("date_of_birth") @db.Date // nullable; drives T1 age amount + is a WARNING (not hard block) when age amount is $0
+  businessNumber String?   @map("business_number")
+  addressLine1   String   @default("") @map("address_line_1")
+  addressLine2   String   @default("") @map("address_line_2")
+  city           String   @default("")
+  province       String   @default("")
+  postalCode     String   @default("") @map("postal_code")
+  country        String   @default("CA")
+  email          String   @default("")
+  phone          String   @default("")
+  clientId       String?  @map("client_id")
+  client         Client?  @relation(fields: [clientId], references: [id])
+  vendorId       String?  @map("vendor_id")
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id])
+  isArchived     Boolean  @default(false) @map("is_archived") // blocked if non-draft slips exist
+  slips          TaxSlip[]
+  t1Returns      T1Return[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([clientId])
+  @@map("tax_parties")
+}
+
+model TaxSlip {
+  id         String @id @default(uuid())
+  type       String // T5 | T4A
+  taxYear    Int    @map("tax_year")
+  status     String @default("draft") // draft | issued | filed | amended | cancelled
+  reportCode String @default("O") @map("report_code") // O | A | C
+
+  partyId String   @map("party_id")
+  party   TaxParty @relation(fields: [partyId], references: [id])
+
+  recipientNameSnapshot    String  @map("recipient_name_snapshot")
+  recipientSinCipher       String? @map("recipient_sin_cipher") // AES-GCM, frozen at issue
+  recipientBnSnapshot      String? @map("recipient_bn_snapshot")
+  recipientAddressSnapshot String  @default("") @map("recipient_address_snapshot")
+
+  boxes         Json
+  boxesOverride Json?  @map("boxes_override")
+  currency      String @default("CAD")
+
+  slipNumber   String? @map("slip_number") // allocated at draft->issued, non-null once issued
+  amendmentSeq Int     @default(0) @map("amendment_seq")
+  isCancelled  Boolean @default(false) @map("is_cancelled")
+
+  amendsId  String?   @map("amends_id")
+  amends    TaxSlip?  @relation("SlipAmendment", fields: [amendsId], references: [id])
+  amendedBy TaxSlip[] @relation("SlipAmendment")
+
+  summaryId String?         @map("summary_id") // back-link only (set at file time)
+  summary   TaxSlipSummary? @relation(fields: [summaryId], references: [id])
+
+  sourceRef        Json?     @map("source_ref")
+  pdfStoredFileId  String?   @map("pdf_stored_file_id") // plain id, NO relation
+  issuedAt         DateTime? @map("issued_at")
+  filedAt          DateTime? @map("filed_at")
+  craSubmissionRef String?   @map("cra_submission_ref")
+  notes            String    @default("")
+  createdById      String?   @map("created_by_id")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([type, taxYear, slipNumber, amendmentSeq])
+  @@index([type, taxYear])
+  @@index([partyId])
+  @@index([status])
+  @@index([amendsId])
+  @@map("tax_slips")
+}
+
+model TaxSlipSummary {
+  id                     String    @id @default(uuid())
+  type                   String
+  taxYear                Int       @map("tax_year")
+  totals                 Json // FROZEN at file time; never read as live source of truth
+  totalRecipients        Int       @default(0) @map("total_recipients")
+  filerLegalNameSnapshot String    @default("") @map("filer_legal_name_snapshot")
+  filerBnRzSnapshot      String    @default("") @map("filer_bn_rz_snapshot")
+  filerAddressSnapshot   String    @default("") @map("filer_address_snapshot")
+  status                 String    @default("filed") // a row exists only once filed
+  filedAt                DateTime  @map("filed_at")
+  craSubmissionRef       String?   @map("cra_submission_ref")
+  pdfStoredFileId        String?   @map("pdf_stored_file_id") // plain id
+  xmlStoredFileId        String?   @map("xml_stored_file_id") // plain id
+  slips                  TaxSlip[]
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([type, taxYear])
+  @@map("tax_slip_summaries")
+}
+
+model CcaClass {
+  id                         String   @id @default(uuid())
+  classNumber                String   @unique @map("class_number") // "8","10","50","10.1"
+  description                String
+  rate                       Decimal  @db.Decimal(6, 4)
+  halfYearRuleApplies        Boolean  @default(true) @map("half_year_rule_applies")
+  accIiEligible              Boolean  @default(false) @map("acc_ii_eligible")
+  immediateExpensingEligible Boolean  @default(false) @map("immediate_expensing_eligible")
+  expenseAccountId           String?  @map("expense_account_id")
+  accumDepAccountId          String?  @map("accum_dep_account_id")
+  assetAccountId             String?  @map("asset_account_id")
+  isArchived                 Boolean  @default(false) @map("is_archived")
+  assets                     CcaAsset[]
+  scheduleEntries            CcaScheduleEntry[]
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@map("cca_classes")
+}
+
+model CcaAsset {
+  id           String    @id @default(uuid())
+  classId      String    @map("class_id")
+  ccaClass     CcaClass  @relation(fields: [classId], references: [id])
+  description  String
+  acquiredDate DateTime  @map("acquired_date")
+  cost         Decimal   @db.Decimal(15, 2)
+  disposedDate DateTime? @map("disposed_date")
+  proceeds     Decimal?  @db.Decimal(15, 2)
+  isAcIiAsset  Boolean   @default(false) @map("is_acc_ii_asset")
+  expenseId    String?   @map("expense_id")
+  billId       String?   @map("bill_id")
+  vendorId     String?   @map("vendor_id")
+  notes        String    @default("")
+  isArchived   Boolean   @default(false) @map("is_archived")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([classId])
+  @@index([acquiredDate])
+  @@map("cca_assets")
+}
+
+model CcaScheduleEntry {
+  id                 String   @id @default(uuid())
+  classId            String   @map("class_id")
+  ccaClass           CcaClass @relation(fields: [classId], references: [id])
+  taxYear            Int      @map("tax_year")
+  openingUcc         Decimal  @map("opening_ucc") @db.Decimal(15, 2)
+  additions          Decimal  @default(0) @db.Decimal(15, 2)
+  dispositions       Decimal  @default(0) @db.Decimal(15, 2)
+  halfYearAdjustment Decimal  @default(0) @map("half_year_adjustment") @db.Decimal(15, 2)
+  accIiAddition      Decimal  @default(0) @map("acc_ii_addition") @db.Decimal(15, 2)
+  ccaRate            Decimal  @map("cca_rate") @db.Decimal(6, 4)
+  ccaBase            Decimal  @default(0) @map("cca_base") @db.Decimal(15, 2)
+  ccaMax             Decimal  @default(0) @map("cca_max") @db.Decimal(15, 2)
+  ccaClaimed         Decimal  @default(0) @map("cca_claimed") @db.Decimal(15, 2)
+  closingUcc         Decimal  @map("closing_ucc") @db.Decimal(15, 2)
+  method             String   @default("half_year") // half_year | accii | diep | full | none
+  status             String   @default("draft") // draft | posted | locked
+  isSeed             Boolean  @default(false) @map("is_seed")
+  isCatchUp          Boolean  @default(false) @map("is_catch_up") // prior-period correction booked here
+  catchUpForYear     Int?     @map("catch_up_for_year") // the locked year this corrects
+  isOverridden       Boolean  @default(false) @map("is_overridden")
+  overrides          Json?
+  // AS-FILED snapshot — frozen when status->locked, NEVER touched by recompute
+  filedOpeningUcc    Decimal?  @map("filed_opening_ucc") @db.Decimal(15, 2)
+  filedCcaClaimed    Decimal?  @map("filed_cca_claimed") @db.Decimal(15, 2)
+  filedClosingUcc    Decimal?  @map("filed_closing_ucc") @db.Decimal(15, 2)
+  filedAt            DateTime? @map("filed_at")
+  journalEntryId     String?   @unique @map("journal_entry_id")
+  postedAt           DateTime? @map("posted_at")
+  notes              String    @default("")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([classId, taxYear])
+  @@index([taxYear])
+  @@map("cca_schedule_entries")
+}
+
+model FilingExport {
+  id                 String    @id @default(uuid())
+  kind               String // t5_return | t4a_return | gst34_worksheet
+  taxYear            Int       @map("tax_year")
+  format             String // xml | worksheet_pdf | slip_zip
+  status             String    @default("staged") // staged | downloaded | submitted | superseded
+  slipIds            String[]  @map("slip_ids")
+  summaryId          String?   @map("summary_id")
+  checksum           String // checksum of regenerated payload; payload itself NOT stored
+  validationReport   Json      @map("validation_report") // zod + xmllint results
+  transmitterRef     String?   @map("transmitter_ref")
+  storedFileId       String?   @map("stored_file_id") // plain id; only for non-SIN artifacts (worksheet)
+  generatedAt        DateTime  @default(now()) @map("generated_at")
+  submittedAt        DateTime? @map("submitted_at")
+  submittedReference String?   @map("submitted_reference")
+
+  @@index([kind, taxYear])
+  @@map("filing_exports")
+}
+
+/**
+ * T1Return — a Canadian personal income-tax return (T1) for one filer/year.
+ *
+ * Scope v1: a MARRIED, full-year Alberta resident CCPC owner paid PERSONALLY via
+ * the company's own T5 dividends. The app PREPARES & VERIFIES the return; it can
+ * NEVER NETFILE — there is no "filed" status (draft | prepared | superseded only).
+ *
+ * Design posture (mirrors TaxSlip / FilingExport):
+ *  - One effective return per (taxYear, partyId); amendments are NEW rows in an
+ *    amendsId chain with amendmentSeq+1 (prior -> "superseded").
+ *  - lines/linesOverride are JSON keyed by CRA line number (effective value =
+ *    linesOverride[k] ?? lines[k]).
+ *  - NO SIN-bearing artifact persisted beyond the AES-GCM ciphers; the export is
+ *    regenerated in memory on authorized download. Only checksum + validation
+ *    report + line snapshot are stored (resultSnapshot).
+ *  - engineVersion = "{computeSemver}+{rateYear}+{provHash}"; reopening a prepared
+ *    return whose recomputed engineVersion differs forces an explicit re-prepare.
+ */
+model T1Return {
+  id           String  @id @default(uuid())
+  taxYear      Int     @map("tax_year")
+  province     String  @default("AB") // filer's province of residence on Dec 31; NEVER inherited from CompanySettings
+  status       String  @default("draft") // draft | prepared | superseded (NEVER "filed")
+  amendmentSeq Int     @default(0) @map("amendment_seq") // T1-ADJ chain
+  amendsId     String? @map("amends_id")
+  amends       T1Return?  @relation("T1Amendment", fields: [amendsId], references: [id])
+  amendedBy    T1Return[] @relation("T1Amendment")
+
+  partyId String   @map("party_id") // filer (TaxParty, kind=individual)
+  party   TaxParty @relation(fields: [partyId], references: [id])
+
+  // Identity frozen at prepare (reuse buildRecipientSnapshot); NO live SIN persisted beyond cipher.
+  taxpayerNameSnapshot    String    @default("") @map("taxpayer_name_snapshot")
+  taxpayerSinCipher       String?   @map("taxpayer_sin_cipher")
+  taxpayerAddressSnapshot String    @default("") @map("taxpayer_address_snapshot")
+  taxpayerDobSnapshot     DateTime? @map("taxpayer_dob_snapshot") @db.Date // drives age amount + identification jacket
+
+  // Marital status (v1 supports married/common-law; required spouse fields below when married).
+  maritalStatus           String    @default("single") @map("marital_status") // single | married | commonLaw | separated | divorced | widowed
+  spouseFirstNameSnapshot String?   @map("spouse_first_name_snapshot")
+  spouseSinCipher         String?   @map("spouse_sin_cipher") // AES-GCM (iv:tag:ct); masked in UI, full only in in-memory export
+  spouseNetIncome         Decimal?  @map("spouse_net_income") @db.Decimal(14, 2) // her line 23600; REQUIRED when married/common-law
+
+  lines         Json  @default("{}") // engine-computed: CRA lineNumber (string) -> number
+  linesOverride Json? @map("lines_override") // manual entry/override: lineNumber -> number
+  pulledRefs    Json? @map("pulled_refs") // provenance + drift: lineNumber -> { slipNumber, amendmentSeq, slipIds[], total }
+
+  resultSnapshot Json?  @map("result_snapshot") // frozen T1Result at prepare time
+  engineVersion  String @default("") @map("engine_version") // {computeSemver}+{rateYear}+{provHash}
+
+  preparedAt  DateTime? @map("prepared_at")
+  notes       String    @default("")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([taxYear, partyId, amendmentSeq])
+  @@index([taxYear])
+  @@index([partyId])
+  @@index([status])
+  @@index([amendsId])
+  @@map("t1_returns")
+}
+
+/**
+ * T2Return — a federal corporate income-tax return (T2) for one fiscal year.
+ *
+ * Scope v1 (locked persona): an owner-managed CCPC, Alberta-resident, DECEMBER-31
+ * fiscal year-end, FULL 12-month years only, ACTIVE business income only, single
+ * shareholder, paid via the corporation's OWN dividends. The app PREPARES &
+ * VERIFIES the return; it can NEVER transmit (no CRA Corporation Internet Filing).
+ * There is no "filed" status (draft | prepared | superseded only).
+ *
+ * The filer is THE COMPANY, so the natural key is (fiscalYearEnd, amendmentSeq) —
+ * NOT (taxYear, partyId) like T1Return. The fiscalYearStart/End pair is the GL
+ * window; taxationYear (calendar year the FYE falls in) is the rate-lookup key;
+ * daysInYear is the EXPLICIT day count (365/366 normally; <365 short years are
+ * gated OUT in v1 with a verify ERROR).
+ *
+ * lines/linesOverride are JSON keyed "form:line" (e.g. "S1:300", "S8:217",
+ * "S3:460", "GIFI:2599"); effective value = linesOverride[k] ?? lines[k].
+ * engineVersion = "{computeSemver}+{rateYear}+{fedHash}+{abHash}+{acciiYear}";
+ * reopening a prepared return whose recomputed engineVersion differs forces an
+ * explicit re-prepare. Only checksum + report + resultSnapshot persist — the
+ * PII-bearing (Schedule 50 SIN) export is regenerated in memory on download.
+ */
+model T2Return {
+  id              String   @id @default(uuid())
+  fiscalYearStart DateTime @map("fiscal_year_start") @db.Date // GL-window start
+  fiscalYearEnd   DateTime @map("fiscal_year_end") @db.Date // drives rate-year selection
+  taxationYear    Int      @map("taxation_year") // calendar year the FYE falls in (rate key)
+  daysInYear      Int      @default(365) @map("days_in_year") // EXPLICIT; <365 = short year (gated v1)
+
+  status       String  @default("draft") // draft | prepared | superseded (NEVER "filed")
+  amendmentSeq Int     @default(0) @map("amendment_seq")
+  amendsId     String? @map("amends_id")
+  amends       T2Return?  @relation("T2Amendment", fields: [amendsId], references: [id])
+  amendedBy    T2Return[] @relation("T2Amendment")
+
+  // Frozen corporate identity snapshot at prepare.
+  legalNameSnapshot String @default("") @map("legal_name_snapshot")
+  bnRcSnapshot      String @default("") @map("bn_rc_snapshot") // 9-digit BN + RC0001 program account
+  provinceSnapshot  String @default("AB") @map("province_snapshot")
+
+  // JSON line storage — keyed "form:line". effective = linesOverride[k] ?? lines[k].
+  lines         Json  @default("{}")
+  linesOverride Json? @map("lines_override")
+  pulledRefs    Json? @map("pulled_refs") // "form:line" -> { source:'GL'|'CCA'|'JE'|'T5', ids[], total }
+
+  // Schedule 141 attestations (enums/booleans, not amounts) live here, not in lines.
+  s141 Json? // { involvement, gaapFramework, notesAttached }
+
+  // First-year / judgement inputs confirmed via checkbox (PSB flag, taxable
+  // capital, opening continuity confirmation) live in lines/linesOverride + the
+  // T2ContinuityBalance record; no dedicated columns needed for v1.
+
+  resultSnapshot Json?   @map("result_snapshot") // frozen { federal:T2Result, alberta:AT1Result } at prepare
+  engineVersion  String  @default("") @map("engine_version") // {semver}+{rateYear}+{fedHash}+{abHash}+{acciiYear}
+  preparedAt     DateTime? @map("prepared_at")
+  notes          String  @default("")
+  createdById    String? @map("created_by_id")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([fiscalYearEnd, amendmentSeq])
+  @@index([taxationYear])
+  @@index([status])
+  @@index([amendsId])
+  @@map("t2_returns")
+}
+
+/**
+ * AT1Return — the Alberta corporate-tax return (AT1), a SIBLING of T2Return so a
+ * federal reassessment and an Alberta reassessment version + amend INDEPENDENTLY.
+ *
+ * Alberta is outside the federal-provincial tax-collection agreement, so the
+ * federal T2 carries NO Alberta line; Alberta tax is computed here and the user
+ * re-keys it into Alberta TRA Net File separately. lines keyed by AT1 line number
+ * (e.g. "AT1:070", "AT1:129"). engineVersion folds abHash + acciiYear.
+ */
+model AT1Return {
+  id              String   @id @default(uuid())
+  fiscalYearStart DateTime @map("fiscal_year_start") @db.Date
+  fiscalYearEnd   DateTime @map("fiscal_year_end") @db.Date
+  taxationYear    Int      @map("taxation_year")
+  daysInYear      Int      @default(365) @map("days_in_year")
+
+  status       String  @default("draft") // draft | prepared | superseded
+  amendmentSeq Int     @default(0) @map("amendment_seq")
+  amendsId     String? @map("amends_id")
+  amends       AT1Return?  @relation("AT1Amendment", fields: [amendsId], references: [id])
+  amendedBy    AT1Return[] @relation("AT1Amendment")
+
+  legalNameSnapshot       String @default("") @map("legal_name_snapshot")
+  albertaCanSnapshot      String @default("") @map("alberta_can_snapshot") // 10-digit Alberta CAN
+  provinceSnapshot        String @default("AB") @map("province_snapshot")
+
+  lines         Json  @default("{}")
+  linesOverride Json? @map("lines_override")
+  pulledRefs    Json? @map("pulled_refs")
+
+  resultSnapshot Json?   @map("result_snapshot") // frozen AT1Result at prepare
+  engineVersion  String  @default("") @map("engine_version") // {semver}+{rateYear}+{abHash}+{acciiYear}
+  preparedAt     DateTime? @map("prepared_at")
+  notes          String  @default("")
+  createdById    String? @map("created_by_id")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([fiscalYearEnd, amendmentSeq])
+  @@index([taxationYear])
+  @@index([status])
+  @@index([amendsId])
+  @@map("at1_returns")
+}
+
+/**
+ * T2ContinuityBalance — RDTOH / GRIP roll-forward, one row per fiscal year.
+ *
+ * Each year's OPENING balances = the prior year's filed CLOSING balances (mirrors
+ * CcaScheduleEntry's filed-snapshot pattern). The FIRST filed year has no prior
+ * row, so the openings are entered manually and `openingConfirmed` must be ticked
+ * — the T2 verify gate BLOCKS prepare until it is true. For the locked persona
+ * (active-income-only, GRIP $0) every opening is 0.
+ */
+model T2ContinuityBalance {
+  id            String   @id @default(uuid())
+  fiscalYearEnd DateTime @map("fiscal_year_end") @db.Date
+
+  openingErdtoh    Decimal @default(0) @map("opening_erdtoh") @db.Decimal(14, 2)
+  openingNerdtoh   Decimal @default(0) @map("opening_nerdtoh") @db.Decimal(14, 2)
+  openingGrip      Decimal @default(0) @map("opening_grip") @db.Decimal(14, 2)
+  // Prior-year aggregate-investment-income drives the SBD AAII grind (ITA
+  // 125(5.1)(b)); 0 for the active-only persona, confirmed in the first year.
+  priorYearAaii    Decimal @default(0) @map("prior_year_aaii") @db.Decimal(14, 2)
+  openingConfirmed Boolean @default(false) @map("opening_confirmed") // blocks prepare in the first filed year
+
+  // AS-FILED closing snapshot — frozen at prepare, becomes next year's opening.
+  filedClosingErdtoh  Decimal? @map("filed_closing_erdtoh") @db.Decimal(14, 2)
+  filedClosingNerdtoh Decimal? @map("filed_closing_nerdtoh") @db.Decimal(14, 2)
+  filedClosingGrip    Decimal? @map("filed_closing_grip") @db.Decimal(14, 2)
+  filedAt             DateTime? @map("filed_at")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fiscalYearEnd])
+  @@map("t2_continuity_balances")
+}

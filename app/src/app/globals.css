@@ -1,0 +1,294 @@
+@import "tailwindcss";
+
+:root {
+  /* Design tokens */
+  --fb-text: #001B40;
+  --fb-text-muted: #576981;
+  --fb-text-faint: #8C9BAB;
+  --fb-bg: #FFFEFD;
+  --fb-surface: #FFFFFF;
+  --fb-surface-alt: #F5F7FA;
+  --fb-border: #E1E6EB;
+  --fb-sidebar: #0075DD;
+  --fb-sidebar-active: #002D79;
+  --fb-primary: #001B40;
+  --fb-primary-hover: #002D79;
+  --fb-accent: #0075DD;
+  --fb-success: #2FA84F;
+  --fb-success-bg: #E3FCEF;
+  --fb-success-text: #006644;
+  --fb-warning: #FFAB00;
+  --fb-warning-bg: #FFF4E0;
+  --fb-warning-text: #8F5E00;
+  --fb-danger: #DE350B;
+  --fb-danger-bg: #FFEBE6;
+  --fb-danger-text: #BF2600;
+  --fb-info-bg: #DEEBFF;
+  --fb-info-text: #0747A6;
+
+  /* --font-heading and --font-body are injected by next/font/google in src/app/layout.tsx.
+     Fallbacks below kick in if the Next variables are absent (e.g. SSR with fonts not yet loaded). */
+
+  /* Legacy tokens (transitional) */
+  --background: var(--fb-bg);
+  --foreground: var(--fb-text);
+  --sidebar-bg: var(--fb-sidebar);
+  --sidebar-text: #FFFFFF;
+  --sidebar-active: var(--fb-sidebar-active);
+  --sidebar-hover: rgba(255, 255, 255, 0.08);
+  --primary-green: var(--fb-success);
+  --primary-green-hover: #268f3e;
+  --card-bg: var(--fb-surface);
+  --border-color: var(--fb-border);
+  --text-muted: var(--fb-text-muted);
+  --brand-blue: var(--fb-accent);
+  --brand-navy: var(--fb-text);
+}
+
+@theme inline {
+  --color-background: var(--fb-bg);
+  --color-foreground: var(--fb-text);
+  --color-fb-text: var(--fb-text);
+  --color-fb-text-muted: var(--fb-text-muted);
+  --color-fb-text-faint: var(--fb-text-faint);
+  --color-fb-bg: var(--fb-bg);
+  --color-fb-surface: var(--fb-surface);
+  --color-fb-surface-alt: var(--fb-surface-alt);
+  --color-fb-border: var(--fb-border);
+  --color-fb-sidebar: var(--fb-sidebar);
+  --color-fb-sidebar-active: var(--fb-sidebar-active);
+  --color-fb-primary: var(--fb-primary);
+  --color-fb-accent: var(--fb-accent);
+  --color-fb-success: var(--fb-success);
+  --color-fb-success-bg: var(--fb-success-bg);
+  --color-fb-success-text: var(--fb-success-text);
+  --color-fb-warning: var(--fb-warning);
+  --color-fb-warning-bg: var(--fb-warning-bg);
+  --color-fb-warning-text: var(--fb-warning-text);
+  --color-fb-danger: var(--fb-danger);
+  --color-fb-danger-bg: var(--fb-danger-bg);
+  --color-fb-danger-text: var(--fb-danger-text);
+  --color-fb-info-bg: var(--fb-info-bg);
+  --color-fb-info-text: var(--fb-info-text);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-heading);
+  --font-mono: ui-monospace, monospace;
+}
+
+/* All element defaults in @layer base so Tailwind utilities (in @layer utilities) win. */
+@layer base {
+  html,
+  body {
+    background: var(--fb-bg);
+    color: var(--fb-text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  h1 {
+    font-family: var(--font-heading);
+    font-size: 28px;
+    line-height: 36px;
+    font-weight: 500;
+    color: var(--fb-text);
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 640px) {
+    h1 {
+      font-size: 40px;
+      line-height: 48px;
+    }
+  }
+
+  h2 {
+    font-family: var(--font-body);
+    font-size: 20px; /*bump2*/
+    line-height: 28px;
+    font-weight: 600;
+    color: var(--fb-text);
+  }
+
+  h3 {
+    font-family: var(--font-heading);
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 500;
+    color: var(--fb-text);
+  }
+
+  a {
+    color: var(--fb-accent);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  /* Never underline nav links inside the sidebar on hover */
+  aside a:hover,
+  aside a {
+    text-decoration: none;
+  }
+}
+
+/* Global cursor styles */
+button:not(:disabled),
+a[href],
+[role="button"]:not([aria-disabled="true"]),
+[role="link"],
+[role="menuitem"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="option"]:not([aria-disabled="true"]),
+[role="checkbox"]:not([aria-disabled="true"]),
+[role="radio"]:not([aria-disabled="true"]),
+[role="switch"]:not([aria-disabled="true"]),
+summary,
+label[for],
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="button"]:not(:disabled),
+input[type="reset"]:not(:disabled),
+input[type="file"]:not(:disabled),
+select:not(:disabled),
+[onclick] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"],
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+/* Remove number spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+
+/* Card */
+.card {
+  background: var(--fb-surface);
+  border: 1px solid var(--fb-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 27, 64, 0.08);
+}
+
+/* Table hover per style guide */
+.table-row-hover:hover {
+  background: var(--fb-surface-alt);
+}
+
+/* Show row actions on hover next to the amount */
+.table-row-hover .row-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.table-row-hover:hover .row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.table-row-hover:hover {
+  background: #EAF3FF;
+}
+
+/* Stat tile carousel */
+@keyframes fade-cycle {
+  0%, 40% {
+    opacity: 0.6;
+  }
+  50%, 90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+.animate-fade-cycle {
+  animation: fade-cycle 6s ease-in-out infinite;
+}
+
+/* Sidebar base */
+.sidebar {
+  background: var(--fb-sidebar);
+  color: #fff;
+}
+
+/* Print: only portrait card prints */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+@media print {
+  body {
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+  .sidebar,
+  nav,
+  header,
+  aside,
+  [class*="sidebar"],
+  [class*="Sidebar"],
+  [class*="Topbar"],
+  [class*="topbar"],
+  [data-print="hide"],
+  .print\:hidden {
+    display: none !important;
+  }
+  .ml-\[240px\],
+  .ml-\[200px\] {
+    margin-left: 0 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .print-invoice-page {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .invoice-preview-card {
+    min-height: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+  .invoice-preview-card table { page-break-inside: auto; }
+  .invoice-preview-card tr { page-break-inside: avoid; page-break-after: auto; }
+  .invoice-preview-card thead { display: table-header-group; }
+  .invoice-preview-card tfoot { display: table-footer-group; }
+  /* Keep table rows intact across pages */
+  .table-row-hover { break-inside: avoid; }
+}

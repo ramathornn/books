@@ -1,0 +1,54 @@
+# OS
+.DS_Store
+
+# Claude / editor local state
+.claude/
+
+# Personal notes
+memory/
+
+# Real business data (seed source) — commit .example only
+data/
+!data/.gitkeep
+
+# Screenshots of production data
+screenshots/
+
+# Planning / requirements docs (kept locally, not in git)
+phase-2/
+CLAUDE_CODE_*.md
+REQUIREMENTS*.md
+
+# Deploy configs with real hostnames/IPs — commit .example only
+app/deploy/*.conf
+!app/deploy/*.example.conf
+app/scripts/deploy.sh
+app/ecosystem.config.js
+
+# Node / Next
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+**/coverage/
+
+# Env files
+**/.env
+**/.env.*
+!**/.env.example
+
+# TypeScript build info
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.pnpm-debug.log*
+
+# Generated Prisma client
+**/src/generated/prisma/
+
+# Vercel
+.vercel
