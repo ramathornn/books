@@ -14,17 +14,20 @@ import { computeMonthlyPL, computePLFromGL } from '@/lib/reports/profitAndLoss'
 // Axis labels: short month, with a 2-digit year suffix only when the year differs
 // from the current year — matching the dashboard's existing tick convention.
 // (Ported from the helpers previously inline in dashboard/page.tsx.)
+// UTC getters: period starts are UTC-midnight instants (lib/reports/profitAndLoss),
+// which local getters would render as the previous month on any box west of
+// Greenwich. `now` stays on local getters — it's the wall-clock business year.
 function monthLabel(d: Date, now: Date): string {
   return (
-    d.toLocaleString('default', { month: 'short' }) +
-    (d.getFullYear() !== now.getFullYear() ? ` ${String(d.getFullYear()).slice(2)}` : '')
+    d.toLocaleString('default', { month: 'short', timeZone: 'UTC' }) +
+    (d.getUTCFullYear() !== now.getFullYear() ? ` ${String(d.getUTCFullYear()).slice(2)}` : '')
   )
 }
 function quarterLabel(d: Date, now: Date): string {
-  const q = Math.floor(d.getMonth() / 3) + 1
+  const q = Math.floor(d.getUTCMonth() / 3) + 1
   return (
     `Q${q}` +
-    (d.getFullYear() !== now.getFullYear() ? ` ${String(d.getFullYear()).slice(2)}` : '')
+    (d.getUTCFullYear() !== now.getFullYear() ? ` ${String(d.getUTCFullYear()).slice(2)}` : '')
   )
 }
 
