@@ -12,7 +12,7 @@ data/
 !data/.gitkeep
 
 # Screenshots of production data
-screenshots/
+/screenshots/
 
 # Planning / requirements docs (kept locally, not in git)
 phase-2/

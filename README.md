@@ -2,11 +2,22 @@
 
 A self-hosted invoicing & accounting app you actually own. Built with Next.js 16, Prisma, Postgres, Redis, and NextAuth.
 
+<table>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.png" alt="Dashboard" /></td>
+    <td><img src="docs/screenshots/invoices.png" alt="Invoices" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/chart-of-accounts.png" alt="Chart of Accounts" /></td>
+    <td><img src="docs/screenshots/balance-sheet.png" alt="Balance Sheet" /></td>
+  </tr>
+</table>
+
 ## Why this exists
 
 I ran my business on a mainstream accounting SaaS for years. One day I went to add a single new client and hit a paywall: the next tier was **double** the monthly price — for one more row in a table. That was the nudge. I opened Claude Code and started building the tool I wished I was paying for: invoicing, expenses, full double-entry accounting, bank feeds, reports, and Canadian tax filing, running on my own server with my own data.
 
-Books is the result. It is opinionated toward a small owner-operated business, but it is a complete system: clients, estimates, invoices (with online payment via Stripe), recurring billing, expenses and receipts, time tracking, vendors and bills, bank import/reconciliation, a real general ledger with period locking, P&L / balance sheet / cash-flow / sales-tax reports, and a tax module. No per-seat pricing, no client caps, no upsells.
+Books is the result. It is opinionated toward a small owner-operated business, but it is a complete system: clients, estimates, invoices (with online payment via Stripe), recurring billing, expenses and receipts, time tracking, vendors and bills, bank import/reconciliation, multi-currency invoicing with automatic FX rates and revaluation, a real general ledger with period locking, P&L / balance sheet / cash-flow / sales-tax reports, and a tax module. No per-seat pricing, no client caps, no upsells.
 
 ### Built for AI agents
 
