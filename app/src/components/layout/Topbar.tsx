@@ -5,7 +5,15 @@ import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { useSidebar } from './SidebarContext'
 
-export default function Topbar({ readOnly = false }: { readOnly?: boolean }) {
+export default function Topbar({ readOnly = false, userName = '' }: { readOnly?: boolean; userName?: string }) {
+  const initials =
+    userName
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || '?'
   const router = useRouter()
   const { toggle } = useSidebar()
   const [searchQuery, setSearchQuery] = useState('')
@@ -100,7 +108,7 @@ export default function Topbar({ readOnly = false }: { readOnly?: boolean }) {
           aria-expanded={menuOpen}
           className="w-8 h-8 rounded-full border-2 border-[#0075DD] flex items-center justify-center text-[#0075DD] text-[11px] font-bold bg-white hover:bg-blue-50 transition-colors"
         >
-          UM
+          {initials}
         </button>
 
         {menuOpen && (

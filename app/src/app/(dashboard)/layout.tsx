@@ -25,7 +25,7 @@ export default async function DashboardLayout({
       <div className="min-h-screen bg-[#FFFEFD]">
         <Sidebar companyName={company.legalName} readOnly={readOnly} />
         <div className="lg:ml-[220px] flex flex-col min-h-screen bg-[#FFFEFD]">
-          <Topbar readOnly={readOnly} />
+          <Topbar readOnly={readOnly} userName={session.user.name ?? ""} />
           {readOnly && (
             <div className="bg-[#FFF7E6] border-b border-[#FFE0A3] px-4 sm:px-6 lg:px-8 py-2 text-center text-xs text-[#7A5800]">
               Read-only accountant access — you can view everything, but changes are disabled.
