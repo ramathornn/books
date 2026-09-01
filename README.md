@@ -21,7 +21,7 @@ Books is the result. It is opinionated toward a small owner-operated business, b
 
 ### Built for AI agents
 
-Because it was built *with* an agent, it was also built *for* one. Every meaningful action is an API route, and the machine-facing ones (`/api/invoices`, `/api/payments`, `/api/journal-entries`, `/api/gl-accounts`, `/api/banking/*`, `/api/files/*`, …) accept a bearer token (`FILES_API_TOKEN`) as well as a browser session. That means you can point Claude Code, an MCP server, a cron job, or any script at your instance and get an effective AI bookkeeper:
+Because it was built *with* an agent, it was also built *for* one. Every meaningful action is an API route, and the machine-facing ones (`/api/invoices`, `/api/invoices/{id}` (GET/PUT), `/api/payments`, `/api/journal-entries`, `/api/gl-accounts`, `/api/banking/*`, `/api/files/*`, …) accept a bearer token (`FILES_API_TOKEN`) as well as a browser session. That means you can point Claude Code, an MCP server, a cron job, or any script at your instance and get an effective AI bookkeeper:
 
 - drop a folder of receipts in and have them uploaded, OCR'd (Claude vision), and filed against the right expense accounts
 - pull pending bank transactions, categorize / match / split them, and post the journal entries

@@ -137,6 +137,15 @@ function isPublicInvoiceStatusRequest(pathname: string): boolean {
   return /^\/api\/invoices\/[^/]+\/status$/.test(pathname)
 }
 
+// Invoice read/edit — /api/invoices/{id} (GET/PUT only). The route does its
+// own bearer-or-session auth (requireApiAuth) so headless agents can fetch and
+// replace line items. DELETE is deliberately NOT bypassed: it stays behind the
+// session-cookie redirect and the handler is session-only.
+function isPublicInvoiceEditRequest(pathname: string, method: string): boolean {
+  if (method !== 'GET' && method !== 'PUT') return false
+  return /^\/api\/invoices\/[^/]+$/.test(pathname)
+}
+
 // Journal-entry per-id routes — /api/journal-entries/{id} (GET/PUT/DELETE) and
 // /api/journal-entries/{id}/reverse (POST). All do their own bearer-or-session
 // auth (requireApiAuth) in the route handler.
@@ -265,6 +274,11 @@ export async function proxy(request: NextRequest) {
 
   // Allow the invoice status flip (route does its own bearer/session auth)
   if (isPublicInvoiceStatusRequest(pathname)) {
+    return addSecurityHeaders(NextResponse.next())
+  }
+
+  // Allow invoice read/edit (GET/PUT only; route does its own bearer/session auth)
+  if (isPublicInvoiceEditRequest(pathname, request.method)) {
     return addSecurityHeaders(NextResponse.next())
   }
 

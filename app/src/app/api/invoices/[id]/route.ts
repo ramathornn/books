@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { auth } from '@/lib/auth'
+import { requireApiAuth } from '@/lib/apiBearerAuth'
 import prisma from '@/lib/prisma'
 import { invoiceSchema } from '@/lib/validators'
 import { postInvoiceAccrual, unpostInvoiceAccrual } from '@/lib/invoicePosting'
@@ -12,10 +13,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  // Read via Bearer token (headless agents) OR an interactive session, so an
+  // agent can fetch the current line items before editing them.
+  const authed = await requireApiAuth(request)
+  if (!authed.ok) {
+    return Response.json({ error: 'Unauthorized' }, { status: authed.status })
   }
+  const session = authed.via === 'session' ? await auth() : null
 
   const { id } = await params
 
@@ -34,7 +38,7 @@ export async function GET(
 
   // Drafts are hidden from accountant (read-only) sessions — indistinguishable
   // from a missing invoice.
-  if (invoice.status === 'draft' && session.user.role === 'accountant') {
+  if (invoice.status === 'draft' && session?.user?.role === 'accountant') {
     return Response.json({ error: 'Invoice not found' }, { status: 404 })
   }
 
@@ -45,9 +49,12 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  // Edit (incl. full line-item replacement) via Bearer token OR session. The
+  // body is still validated by invoiceSchema and period locks still apply.
+  // DELETE below stays session-only: destructive, no headless use case.
+  const authed = await requireApiAuth(request)
+  if (!authed.ok) {
+    return Response.json({ error: 'Unauthorized' }, { status: authed.status })
   }
 
   const { id } = await params
