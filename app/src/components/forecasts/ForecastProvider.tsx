@@ -8,12 +8,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
-import type { Asset, CellValue, DebtSettings, FlowDayValue, ForecastData, Rates, ScenarioSummary, Section } from '@/lib/forecasts/types'
+import { SCENARIO_COOKIE, type Asset, type CellValue, type DebtSettings, type FlowDayValue, type ForecastData, type Rates, type ScenarioSummary, type Section } from '@/lib/forecasts/types'
 import { computeForecast, type Computed } from '@/lib/forecasts/computed'
 import { setFlowDay as setFlowDayPure, clearFlowDay as clearFlowDayPure } from '@/lib/forecasts/flowDays'
 import { buildMonths, parseMonthLabel } from '@/lib/forecasts/months'
-
-export const SCENARIO_COOKIE = 'forecast_scenario'
 
 const API_SECTION: Record<Section, 'income' | 'expense' | 'debt'> = { income: 'income', expenses: 'expense', receivables: 'debt' }
 

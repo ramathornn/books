@@ -76,3 +76,6 @@ export interface ForecastData extends ScenarioSummary {
 
 /** CAD per 1 unit of each currency. */
 export type Rates = Record<string, number> & { USD: number; EUR: number }
+
+/** Cookie that remembers the selected scenario. Lives here (not in a 'use client' module) so server code gets the real string. */
+export const SCENARIO_COOKIE = 'forecast_scenario'
