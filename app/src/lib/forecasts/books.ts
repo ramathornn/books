@@ -264,6 +264,40 @@ export async function buildBooksExpenses(months: string[], now = new Date()): Pr
       trailing.set(e.category.id, t)
     }
   }
+  // 3b. Categorized bank spend not already recorded as an expense or bill (Books lets you
+  // categorize straight from the feed). Grouped by expense category / GL account name.
+  const bankSpend = await prisma.bankTransaction.findMany({
+    where: {
+      status: 'posted', amount: { lt: 0 }, transferPairId: null, matchedExpenseId: null, matchedInvoiceId: null, matchedPaymentId: null,
+      OR: [{ categoryId: { not: null } }, { categoryGlAccountId: { not: null } }],
+      transactionDate: { gte: trailingStart < rangeStart ? trailingStart : rangeStart, lt: rangeEnd },
+    },
+    select: { id: true, transactionDate: true, amount: true, description: true, payee: true, categoryId: true, categoryGlAccountId: true },
+  })
+  if (bankSpend.length) {
+    const catIds = [...new Set(bankSpend.map((t) => t.categoryId).filter((x): x is string => !!x))]
+    const glIds = [...new Set(bankSpend.map((t) => t.categoryGlAccountId).filter((x): x is string => !!x))]
+    const [cats, gls] = await Promise.all([
+      catIds.length ? prisma.expenseCategory.findMany({ where: { id: { in: catIds } }, select: { id: true, name: true } }) : [],
+      glIds.length ? prisma.gLAccount.findMany({ where: { id: { in: glIds } }, select: { id: true, accountName: true, accountClass: true } }) : [],
+    ])
+    const catName = new Map(cats.map((c) => [c.id, c.name]))
+    const glName = new Map(gls.filter((g) => g.accountClass === 'expense').map((g) => [g.id, g.accountName]))
+    for (const t of bankSpend) {
+      const key = t.categoryId && catName.has(t.categoryId) ? t.categoryId : t.categoryGlAccountId && glName.has(t.categoryGlAccountId) ? t.categoryGlAccountId : null
+      if (!key) continue
+      const name = catName.get(key) ?? glName.get(key)!
+      const cad = Math.abs(Number(t.amount))
+      const r = rowFor(BOOKS_EXPENSE_CATEGORIES.spend, name, { source: 'spend', refId: key, note: `Actuals to date; future months at ${TRAILING_MONTHS}-month average` })
+      add(r, t.transactionDate, cad, 'spend', t.payee || t.description || name, t.id)
+      if (t.transactionDate >= trailingStart && t.transactionDate < thisMonthStart) {
+        const tr = trailing.get(key) ?? { name, sum: 0 }
+        tr.sum += cad
+        trailing.set(key, tr)
+      }
+    }
+  }
+
   // Project the run-rate into every future month (landing mid-month) for categories with history.
   for (const [catId, t] of trailing) {
     const avg = r2(t.sum / TRAILING_MONTHS)

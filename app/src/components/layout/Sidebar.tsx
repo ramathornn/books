@@ -211,6 +211,15 @@ const forecastNavItems: NavItem[] = [
     ),
   },
   {
+    label: 'Taxes',
+    href: '/forecasts/taxes',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6M9.5 8.5h.01M14.5 13.5h.01M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z" />
+      </svg>
+    ),
+  },
+  {
     label: 'Debts',
     href: '/forecasts/debts',
     icon: (
