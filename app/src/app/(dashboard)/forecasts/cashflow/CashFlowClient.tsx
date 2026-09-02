@@ -76,6 +76,13 @@ export default function CashFlowClient() {
             <button type="button" onClick={handleRecord} className="h-9 rounded bg-[#038A06] px-4 text-sm font-medium text-white hover:bg-[#026e05]">Save</button>
           </div>
         )}
+        {data.linkedBank && (
+          <div className="mb-2 flex items-center gap-3 rounded bg-[#DEEBFF]/60 px-3 py-2 text-sm">
+            <span className="h-2 w-2 rounded-full bg-[#0075DD]" />
+            <span className="text-gray-700">Anchored to Books banking as of {data.linkedBank.asOf}</span>
+            <span className="ml-auto font-medium tabular-nums text-gray-900">{fmtMoney(data.linkedBank.amount)}</span>
+          </div>
+        )}
         {snapshots.length > 0 && (
           <ul className="mb-2 divide-y divide-gray-100">
             {snapshots.map((s) => (
@@ -88,7 +95,7 @@ export default function CashFlowClient() {
             ))}
           </ul>
         )}
-        <p className="text-[12px] text-gray-500">Record your total cash across all accounts to anchor the projection. Future months recalculate from that point.</p>
+        <p className="text-[12px] text-gray-500">{data.booksLinked ? 'This scenario anchors to your Books bank balances automatically. Record a balance only to override a specific month.' : 'Record your total cash across all accounts to anchor the projection. Future months recalculate from that point.'}</p>
       </Card>
 
       {view === 'monthly' && (

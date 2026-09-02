@@ -27,11 +27,21 @@ export function buildEvents(data: ForecastData, rates: Rates): CashEvent[] {
   const hidden = data._hidden || {}
   const events: CashEvent[] = []
 
+  // Books-linked rows come with day-level events already; skip their month cells.
+  const linkedIncome = data.linked?.income ?? {}
+  const linkedExpenses = data.linked?.expenses ?? {}
+  for (const e of data.bookEvents ?? []) {
+    if (hidden[e.section]?.[e.row]) continue
+    const [y, m, d] = e.date.split('-').map(Number)
+    const date = new Date(y, m - 1, d)
+    events.push({ date, t: date.getTime(), amount: e.section === 'income' ? e.amount : -e.amount, label: `${e.row} · ${e.label}`, section: e.section, monthIdx: e.monthIndex, day: d })
+  }
+
   months.forEach((label, monthIdx) => {
     const p = parseMonthLabel(label)
     if (!p) return
     for (const [k, arr] of Object.entries(income)) {
-      if (!arr || k.startsWith('_') || hidden.income?.[k]) continue
+      if (!arr || k.startsWith('_') || hidden.income?.[k] || linkedIncome[k]) continue
       const v = resolveValue(arr[monthIdx], data, monthIdx)
       if (!v) continue
       const amount = convertToCAD(v, currencies[k] || 'CAD', rates)
@@ -40,7 +50,7 @@ export function buildEvents(data: ForecastData, rates: Rates): CashEvent[] {
       events.push({ date, t: date.getTime(), amount, label: k, section: 'income', monthIdx, day })
     }
     for (const [k, arr] of Object.entries(expenses)) {
-      if (!arr || k.startsWith('_') || hidden.expenses?.[k]) continue
+      if (!arr || k.startsWith('_') || hidden.expenses?.[k] || linkedExpenses[k]) continue
       const v = resolveValue(arr[monthIdx], data, monthIdx)
       if (!v) continue
       const day = effectiveDay(flowDays, 'expenses', k, monthIdx, label)
@@ -54,7 +64,8 @@ export function buildEvents(data: ForecastData, rates: Rates): CashEvent[] {
 }
 
 export function pickAnchor(data: ForecastData): Anchor | null {
-  const snaps = data.bankBalances || {}
+  const snaps: Record<string, { amount: number; day: number }> = { ...(data.bankBalances || {}) }
+  if (data.linkedBank && !snaps[String(data.linkedBank.monthIndex)]) snaps[String(data.linkedBank.monthIndex)] = { amount: data.linkedBank.amount, day: data.linkedBank.day }
   let best: Anchor | null = null
   for (const [idx, snap] of Object.entries(snaps)) {
     const i = Number(idx)

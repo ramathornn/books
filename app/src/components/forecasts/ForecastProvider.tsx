@@ -50,6 +50,9 @@ interface ForecastStore {
   extendMonths: (count: number) => void
   /** Fill an income row with Books' invoiced revenue (CAD) for every month in the workbook. */
   importBooksRevenue: (rowName?: string) => Promise<boolean>
+  isLinked: (section: Section, key: string) => boolean
+  setBooksLinked: (on: boolean) => void
+  setOwnerPayAccounts: (glAccountIds: string[]) => void
 }
 
 const Ctx = createContext<ForecastStore | null>(null)
@@ -136,11 +139,17 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }, [router])
 
   const rowId = (d: ForecastData, section: Section, key: string): string | undefined => d.ids.rows[section][key]
+  const isLinked = useCallback((section: Section, key: string) => !!dataRef.current.linked[section]?.[key], [])
+  const linkedGuard = (section: Section, key: string): boolean => {
+    if (!dataRef.current.linked[section]?.[key]) return false
+    toast.error('This row comes from Books. Change it on the Books side.')
+    return true
+  }
 
   // ── Cells ──────────────────────────────────────────────────────────────
 
   const updateCells = useCallback((section: Section, key: string, entries: { index: number; value: CellValue }[]) => {
-    if (!entries.length) return
+    if (!entries.length || linkedGuard(section, key)) return
     void mutate(
       (prev) => {
         const next = clone(prev)
@@ -254,6 +263,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }, [base, mutate])
 
   const removeRow = useCallback((section: Section, key: string) => {
+    if (linkedGuard(section, key)) return
     const isCategory = section === 'expenses' && key.startsWith('_')
     const current = dataRef.current
     const id = isCategory ? current.ids.categories[key.slice(1)] : rowId(current, section, key)
@@ -294,6 +304,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }, [base, mutate])
 
   const renameRow = useCallback((section: Section, oldKey: string, newKey: string) => {
+    if (linkedGuard(section, oldKey)) return
     const isCategory = section === 'expenses' && oldKey.startsWith('_')
     const current = dataRef.current
     if ((current[section] as Record<string, unknown>)[newKey] !== undefined) { toast.error('That name is already in use'); return }
@@ -329,7 +340,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }, [base, mutate])
 
   const reorderRow = useCallback((section: Section, dragKey: string, targetKey: string, position: 'before' | 'after') => {
-    if (dragKey === targetKey) return
+    if (dragKey === targetKey || linkedGuard(section, dragKey) || linkedGuard(section, targetKey)) return
     void mutate(
       (prev) => {
         const next = clone(prev)
@@ -439,6 +450,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }, [base, mutate])
 
   const setFlowDay = useCallback((section: Section, row: string, monthIndex: number, day: FlowDayValue, scope: 'month' | 'onward') => {
+    if (linkedGuard(section, row)) return
     const id = rowId(dataRef.current, section, row)
     void mutate(
       (prev) => ({ ...prev, flowDays: setFlowDayPure(prev.flowDays, section, row, monthIndex, day, scope) }),
@@ -517,6 +529,20 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     )
   }, [base, mutate])
 
+  const setBooksLinked = useCallback((on: boolean) => {
+    void mutate(
+      (prev) => ({ ...prev, booksLinked: on }),
+      async () => { await api(base, 'PATCH', { booksLinked: on }) }
+    ).then((ok) => { if (ok) router.refresh() })
+  }, [base, mutate, router])
+
+  const setOwnerPayAccounts = useCallback((glAccountIds: string[]) => {
+    void mutate(
+      (prev) => ({ ...prev, ownerPayGlAccountIds: glAccountIds }),
+      async () => { await api(base, 'PATCH', { ownerPayGlAccountIds: glAccountIds }) }
+    ).then((ok) => { if (ok) router.refresh() })
+  }, [base, mutate, router])
+
   const renameScenario = useCallback((name: string) => {
     void mutate(
       (prev) => ({ ...prev, name }),
@@ -569,7 +595,8 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     setBankBalance, clearBankBalance, setFlowDay, clearFlowDay,
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
-  }), [data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+    isLinked, setBooksLinked, setOwnerPayAccounts,
+  }), [isLinked, setBooksLinked, setOwnerPayAccounts, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

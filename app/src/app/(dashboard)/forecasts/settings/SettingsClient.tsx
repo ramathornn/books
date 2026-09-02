@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import { Card } from '@/components/forecasts/ui'
 import { resolveValue } from '@/lib/forecasts/formula'
@@ -11,7 +11,15 @@ import { toast } from '@/lib/toast'
 // AI advisor, data-path, and API-key settings from WealthPilot are intentionally
 // absent: Books owns storage and auth.
 export default function SettingsClient() {
-  const { data, rates, renameScenario, setRateOverride, extendMonths, readOnly } = useForecast()
+  const { data, rates, renameScenario, setRateOverride, extendMonths, setBooksLinked, setOwnerPayAccounts, readOnly } = useForecast()
+  const [glAccounts, setGlAccounts] = useState<{ id: string; accountNumber: string; accountName: string; accountClass: string }[]>([])
+  const [ownerPay, setOwnerPay] = useState<string[]>(data.ownerPayGlAccountIds)
+  const [glFilter, setGlFilter] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/gl-accounts', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { data: [] })).then((j) => { if (!cancelled) setGlAccounts(j.data ?? []) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
   const [name, setName] = useState(data.name)
   const [usd, setUsd] = useState(data.rateOverrides.USD ? String(data.rateOverrides.USD) : '')
   const [eur, setEur] = useState(data.rateOverrides.EUR ? String(data.rateOverrides.EUR) : '')
@@ -53,6 +61,28 @@ export default function SettingsClient() {
         <div className="mt-2 flex items-end gap-2">
           <label className="text-sm text-gray-600">Months<br /><input type="number" min={data.months.length} max={240} value={months} disabled={readOnly} onChange={(e) => setMonths(e.target.value)} className={`${input} mt-1 w-28`} /></label>
           <button type="button" className={btn} disabled={readOnly || !(parseInt(months, 10) > data.months.length)} onClick={() => { extendMonths(parseInt(months, 10)); toast.success('Workbook extended') }}>Extend</button>
+        </div>
+      </Card>
+
+      <Card title="Books link">
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <input type="checkbox" className="mt-0.5" checked={data.booksLinked} disabled={readOnly} onChange={(e) => { setBooksLinked(e.target.checked); toast.success(e.target.checked ? 'Linked to Books' : 'Unlinked from Books') }} />
+          <span><span className="font-medium text-gray-900">Derive income and expenses from Books</span><br /><span className="text-[12px] text-gray-500">Active clients, open invoices, drafts, recurring templates, bills and categorized spend become read-only rows, and cash on hand anchors to your bank balances. Manual rows stay editable alongside them.</span></span>
+        </label>
+        <div className="mt-4">
+          <p className="text-sm font-medium text-gray-900">Owner pay accounts (&quot;From Business&quot; income row)</p>
+          <p className="mb-2 text-[12px] text-gray-500">Pick the GL accounts where the business pays you: salary, dividends declared, shareholder loan draws. Posted activity in those accounts becomes a linked income row here, projected forward at the trailing 3-month average.</p>
+          <input value={glFilter} onChange={(e) => setGlFilter(e.target.value)} placeholder="Filter accounts…" className={`${input} mb-2 w-64`} />
+          <div className="max-h-48 overflow-y-auto rounded border border-gray-200">
+            {glAccounts.filter((a) => !glFilter || `${a.accountNumber} ${a.accountName}`.toLowerCase().includes(glFilter.toLowerCase())).map((a) => (
+              <label key={a.id} className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-1.5 text-[13px] last:border-0 hover:bg-gray-50">
+                <input type="checkbox" disabled={readOnly} checked={ownerPay.includes(a.id)} onChange={(e) => setOwnerPay((p) => (e.target.checked ? [...p, a.id] : p.filter((x) => x !== a.id)))} />
+                <span className="font-mono text-[12px] text-gray-500">{a.accountNumber}</span><span className="text-gray-800">{a.accountName}</span><span className="ml-auto text-[11px] uppercase text-gray-400">{a.accountClass}</span>
+              </label>
+            ))}
+            {!glAccounts.length && <p className="px-3 py-2 text-[12px] text-gray-400">Loading chart of accounts…</p>}
+          </div>
+          <button type="button" className={`${btn} mt-2`} disabled={readOnly || JSON.stringify([...ownerPay].sort()) === JSON.stringify([...data.ownerPayGlAccountIds].sort())} onClick={() => { setOwnerPayAccounts(ownerPay); toast.success('Owner pay accounts saved') }}>Save owner pay accounts</button>
         </div>
       </Card>
 

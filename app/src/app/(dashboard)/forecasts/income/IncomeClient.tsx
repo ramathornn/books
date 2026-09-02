@@ -39,10 +39,10 @@ export default function IncomeClient() {
       </div>
 
       <div className="mb-3 flex items-start justify-between gap-3">
-        <SectionTitle sub="Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on · Values in source currency, totals in CAD">Income data</SectionTitle>
+        <SectionTitle sub={data.booksLinked ? 'Rows tagged Books are active clients (invoiced this or last month): collected payments, open invoices on their expected pay date, drafts and recurring templates. Edit them in Books. Manual rows can still be added below.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on · Values in source currency, totals in CAD'}>Income data</SectionTitle>
         {!readOnly && (
           <div className="flex gap-2">
-            <button type="button" disabled={importing} title="Fill a row with invoiced revenue from Books, in CAD, for every month in the workbook" onClick={async () => { setImporting(true); if (await importBooksRevenue()) toast.success('Imported invoiced revenue from Books'); setImporting(false) }} className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">{importing ? 'Importing…' : 'Import from Books'}</button>
+            {!data.booksLinked && <button type="button" disabled={importing} title="Fill a row with invoiced revenue from Books, in CAD, for every month in the workbook" onClick={async () => { setImporting(true); if (await importBooksRevenue()) toast.success('Imported invoiced revenue from Books'); setImporting(false) }} className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">{importing ? 'Importing…' : 'Import from Books'}</button>}
             <AddButton onClick={() => setShowAdd(true)}>Add source</AddButton>
           </div>
         )}
@@ -54,10 +54,10 @@ export default function IncomeClient() {
       )}
 
       <EditableTable section="income" columns={viewMonths} enableDayAssignment
-        rows={keys.map((k) => ({ key: k, label: k, currency: currencies[k] || 'CAD' }))}
+        rows={keys.map((k) => ({ key: k, label: k, currency: currencies[k] || 'CAD', linked: !!data.linked.income?.[k], linkedNote: data.linked.income?.[k]?.note }))}
         totalRow={{ label: 'Total income (CAD)', values: viewIncome }}
         onReorder={readOnly ? null : (d, t, p) => reorderRow('income', d, t, p)}
-        rowActions={readOnly ? null : (row) => (
+        rowActions={readOnly ? null : (row) => row.linked ? <span className="text-[11px] text-gray-400">CAD</span> : (
           <span className="inline-flex items-center gap-0.5">
             <select value={row.currency} onChange={(e) => { setIncomeCurrency(row.key, e.target.value); toast.success(`${row.key} → ${e.target.value}`) }} className={select}>{FORECAST_CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select>
             <RenameControl value={row.key} onRename={(n) => { renameRow('income', row.key, n); toast.success(`Renamed to ${n}`) }} />

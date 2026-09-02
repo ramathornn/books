@@ -14,7 +14,7 @@ import { useForecast } from './ForecastProvider'
 import { FormulaAutocomplete, useFormulaBar, useSuggestionLists } from './FormulaBar'
 import SetDayModal from './SetDayModal'
 
-export interface TableRow { key: string; label: string; isHeader?: boolean; currency?: string }
+export interface TableRow { key: string; label: string; isHeader?: boolean; currency?: string; linked?: boolean; linkedNote?: string }
 
 interface CellProps {
   raw: CellValue
@@ -143,6 +143,12 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
         />
       )}
     </td>
+  )
+}
+
+function BooksBadge({ note }: { note?: string }) {
+  return (
+    <span className="ml-2 inline-flex items-center rounded bg-[#DEEBFF] px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-[#0747A6]" title={note ? `From Books · ${note}. Edit on the Books side.` : 'From Books. Edit on the Books side.'}>Books</span>
   )
 }
 
@@ -299,14 +305,14 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
             const isDropAbove = dropTarget?.key === row.key && dropTarget.position === 'above'
             const isDropBelow = dropTarget?.key === row.key && dropTarget.position === 'below'
             const rowCls = `${isDragging ? 'opacity-40' : ''} ${isDropAbove ? 'shadow-[inset_0_2px_0_#0075DD]' : ''} ${isDropBelow ? 'shadow-[inset_0_-2px_0_#0075DD]' : ''}`
-            const grip = onReorder && !readOnly ? (
+            const grip = onReorder && !readOnly && !row.linked ? (
               <span draggable onDragStart={(e) => handleDragStart(e, row.key)} onDragEnd={handleDragEnd} className="mr-2 inline-block cursor-grab select-none text-gray-300 hover:text-gray-500" title="Drag to reorder">⋮⋮</span>
             ) : null
 
             if (row.isHeader) {
               return (
                 <tr key={row.key} className={`bg-gray-50/70 ${rowCls}`} onDragOver={(e) => handleDragOver(e, row)} onDrop={handleDrop}>
-                  <td className={`${stickyTd} !bg-gray-50/70 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-gray-600`}>{grip}{row.label}</td>
+                  <td className={`${stickyTd} !bg-gray-50/70 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-gray-600`}>{grip}{row.label}{row.linked && <BooksBadge note={row.linkedNote} />}</td>
                   {rowActions && <td className="border-b border-gray-100 px-1">{rowActions(row)}</td>}
                   <td className="border-b border-gray-100" colSpan={columns.length + (hideTotals ? 0 : 1)} />
                 </tr>
@@ -320,11 +326,11 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
             const rowTotal = resolvedView.reduce((a, b) => a + b, 0)
             return (
               <tr key={row.key} className={rowCls} onDragOver={(e) => handleDragOver(e, row)} onDrop={handleDrop}>
-                <td className={stickyTd}>{grip}{row.label}</td>
+                <td className={stickyTd}>{grip}{row.label}{row.linked && <BooksBadge note={row.linkedNote} />}</td>
                 {rowActions && <td className="border-b border-gray-100 px-1 whitespace-nowrap">{rowActions(row)}</td>}
                 {viewData.map((val, i) => {
                   const absIdx = from + i
-                  const cellReadOnly = readOnly || (hasComputed && absIdx > 0 && !editableComputedKeys?.[row.key])
+                  const cellReadOnly = readOnly || !!row.linked || (hasComputed && absIdx > 0 && !editableComputedKeys?.[row.key])
                   let dayBadge: string | null = null
                   if (enableDayAssignment) {
                     const d = assignedDay(flowDays, section, row.key, absIdx)
@@ -346,7 +352,7 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
                       globalSelectMode={globalSelectMode}
                       onFillStart={cellReadOnly ? undefined : handleFillStart}
                       onGlobalCellClick={handleGlobalCellClick}
-                      onContextMenu={enableDayAssignment ? handleCellContextMenu : undefined}
+                      onContextMenu={enableDayAssignment && !row.linked ? handleCellContextMenu : undefined}
                     />
                   )
                 })}

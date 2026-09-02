@@ -56,7 +56,36 @@ export interface ForecastIds {
   assets: Record<string, string>
 }
 
+/** Provenance of a row derived from Books (never stored; rebuilt on every load). */
+export interface LinkedInfo {
+  source: 'client' | 'bill' | 'recurring' | 'spend' | 'owner-pay'
+  refId?: string
+  note?: string
+}
+
+export type BookEventKind = 'collected' | 'expected' | 'draft' | 'recurring' | 'bill' | 'spend' | 'owner-pay'
+
+/** A dated cash event derived from Books, in CAD. `row` matches a linked row name. */
+export interface BookEvent {
+  date: string // YYYY-MM-DD (local calendar date)
+  monthIndex: number
+  section: 'income' | 'expenses'
+  row: string
+  amount: number
+  kind: BookEventKind
+  label: string
+  refId?: string
+}
+
 export interface ForecastData extends ScenarioSummary {
+  booksLinked: boolean
+  ownerPayGlAccountIds: string[]
+  /** Rows whose values come from Books; keyed by section then row name. */
+  linked: Partial<Record<Section, Record<string, LinkedInfo>>>
+  /** Day-level Books events backing the linked rows (drives the timeline). */
+  bookEvents: BookEvent[]
+  /** Cash-on-hand anchor taken from Books banking (only when booksLinked and no manual snapshot that month). */
+  linkedBank: { monthIndex: number; day: number; amount: number; asOf: string } | null
   months: string[]
   viewFrom: number
   viewTo: number

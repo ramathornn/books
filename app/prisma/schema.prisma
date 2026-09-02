@@ -1551,6 +1551,12 @@ model ForecastScenario {
   viewFrom   Int    @default(0) @map("view_from")
   viewTo     Int    @default(11) @map("view_to")
   sortOrder  Int    @default(0) @map("sort_order")
+  // Books-linked scenario: income/expense rows are derived from Books invoices,
+  // bills, recurring templates and expenses at load time (read-only in the UI).
+  booksLinked Boolean @default(false) @map("books_linked")
+  // Personal scenario: GL accounts whose posted activity is owner compensation
+  // (salary, dividends, shareholder draws); feeds the "From Business" income row.
+  ownerPayGlAccountIds String[] @default([]) @map("owner_pay_gl_account_ids")
 
   rows          ForecastRow[]
   categories    ForecastCategory[]

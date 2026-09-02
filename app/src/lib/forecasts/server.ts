@@ -2,8 +2,9 @@
 // client ForecastData shape, and bootstrap the default scenarios.
 import 'server-only'
 import prisma from '@/lib/prisma'
-import type { Asset, CellValue, DebtSettings, FlowDays, ForecastData, ForecastIds, ScenarioSummary, Section } from './types'
-import { buildMonths } from './months'
+import type { Asset, BookEvent, CellValue, DebtSettings, FlowDays, ForecastData, ForecastIds, LinkedInfo, ScenarioSummary, Section } from './types'
+import { buildMonths, currentMonthIndex } from './months'
+import { booksCashAsOf, buildBooksExpenses, buildBooksIncome, buildOwnerPay } from './books'
 
 export const SECTION_TO_DB: Record<Section, string> = { income: 'income', expenses: 'expense', receivables: 'debt' }
 export const DB_TO_SECTION: Record<string, Section> = { income: 'income', expense: 'expenses', debt: 'receivables' }
@@ -19,7 +20,7 @@ export async function ensureDefaultScenarios(): Promise<ScenarioSummary[]> {
   await prisma.forecastScenario.createMany({
     data: [
       { name: 'Personal', kind: 'personal', startYear: year, startMonth: 0, monthCount: 12, viewFrom: 0, viewTo: 11, sortOrder: 0 },
-      { name: 'Business', kind: 'business', startYear: year, startMonth: 0, monthCount: 12, viewFrom: 0, viewTo: 11, sortOrder: 1 },
+      { name: 'Business', kind: 'business', startYear: year, startMonth: 0, monthCount: 12, viewFrom: 0, viewTo: 11, sortOrder: 1, booksLinked: true },
     ],
   })
   const rows = await prisma.forecastScenario.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, kind: true } })
@@ -142,7 +143,57 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
   const rateOverrides: Record<string, number> = {}
   for (const r of s.rateOverrides) rateOverrides[r.currency] = dec(r.rate)
 
+  // ── Books-derived rows (read-only, rebuilt every load) ───────────────
+  const linked: ForecastData['linked'] = {}
+  const bookEvents: BookEvent[] = []
+  let linkedBank: ForecastData['linkedBank'] = null
+  const now = new Date()
+  const uniqueName = (section: Section, name: string): string => {
+    const taken = section === 'income' ? income : section === 'expenses' ? expenses : receivables
+    let candidate = name
+    let i = 2
+    while (candidate in taken) candidate = `${name} (${i++})`
+    return candidate
+  }
+  const attach = (section: Section, name: string, cells: CellValue[], info: LinkedInfo, events: BookEvent[]) => {
+    const finalName = uniqueName(section, name)
+    if (finalName !== name) for (const e of events) if (e.row === name) e.row = finalName
+    ;(section === 'income' ? income : (expenses as Record<string, CellValue[]>))[finalName] = cells
+    ;(linked[section] ||= {})[finalName] = info
+  }
+  if (s.booksLinked) {
+    const [inc, exp] = await Promise.all([buildBooksIncome(months, now), buildBooksExpenses(months, now)])
+    for (const r of inc.rows) attach('income', r.name, r.cells, r.linked, inc.events)
+    bookEvents.push(...inc.events)
+    // Virtual category headers keep Books rows grouped and unmovable.
+    const cats = [...new Set(exp.rows.map((r) => r.category!))]
+    for (const c of cats) {
+      expenses[`_${c}`] = null
+      ;(linked.expenses ||= {})[`_${c}`] = { source: 'spend', note: 'Books category' }
+      for (const r of exp.rows.filter((x) => x.category === c)) attach('expenses', r.name, r.cells, r.linked, exp.events)
+    }
+    bookEvents.push(...exp.events)
+    const todayIdx = currentMonthIndex(months, now)
+    if (todayIdx >= 0 && todayIdx < n && !bankBalances[String(todayIdx)]) {
+      try {
+        const asOf = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999))
+        const cash = await booksCashAsOf(asOf)
+        linkedBank = { monthIndex: todayIdx, day: now.getDate(), amount: cash.total, asOf: asOf.toISOString().slice(0, 10) }
+      } catch { /* leave unanchored */ }
+    }
+  }
+  if (s.ownerPayGlAccountIds.length) {
+    const own = await buildOwnerPay(s.ownerPayGlAccountIds, months, now)
+    for (const r of own.rows) attach('income', r.name, r.cells, r.linked, own.events)
+    bookEvents.push(...own.events)
+  }
+
   return {
+    booksLinked: s.booksLinked,
+    ownerPayGlAccountIds: s.ownerPayGlAccountIds,
+    linked,
+    bookEvents,
+    linkedBank,
     id: s.id,
     name: s.name,
     kind: s.kind === 'business' ? 'business' : 'personal',

@@ -18,7 +18,7 @@ export default function ExpensesClient() {
 
   const sortedCats = categoryTotals.filter((c) => c.total > 0).sort((a, b) => b.total - a.total)
   const stacked = viewMonths.map((month, i) => { const row: Record<string, number | string> = { month }; categoryTotals.forEach((c) => { row[c.name] = c.viewTotals[i] }); return row })
-  const rows: TableRow[] = Object.keys(data.expenses).map((k) => (k.startsWith('_') ? { key: k, label: k.slice(1), isHeader: true } : { key: k, label: k }))
+  const rows: TableRow[] = Object.keys(data.expenses).map((k) => ({ key: k, label: k.startsWith('_') ? k.slice(1) : k, isHeader: k.startsWith('_'), linked: !!data.linked.expenses?.[k], linkedNote: data.linked.expenses?.[k]?.note }))
   const confirmIsCat = !!confirmKey?.startsWith('_')
 
   return (
@@ -34,7 +34,7 @@ export default function ExpensesClient() {
       </div>
 
       <div className="mb-3 flex items-start justify-between gap-3">
-        <SectionTitle sub="Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on">Expense data</SectionTitle>
+        <SectionTitle sub={data.booksLinked ? 'Rows tagged Books come from open bills (by due date), recurring templates and expenses, and categorized spend at a trailing 3-month average. Edit them in Books. Manual categories can still be added below.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on'}>Expense data</SectionTitle>
         {!readOnly && <AddButton onClick={() => { setShowAddCat(true); setAddItemCat(null) }}>Add category</AddButton>}
       </div>
       {showAddCat && <InlineAdd placeholder="Category name…" onCancel={() => setShowAddCat(false)} onSubmit={async (name) => { if (await addExpenseCategory(name)) { toast.success(`Category added: ${name}`); setShowAddCat(false) } }} />}
@@ -43,7 +43,7 @@ export default function ExpensesClient() {
       <EditableTable section="expenses" columns={viewMonths} rows={rows} enableDayAssignment
         totalRow={{ label: 'Total expenses', values: viewExpenses }}
         onReorder={readOnly ? null : (d, t, p) => reorderRow('expenses', d, t, p)}
-        rowActions={readOnly ? null : (row) => (
+        rowActions={readOnly ? null : (row) => row.linked ? null : (
           <span className="inline-flex items-center gap-0.5">
             {row.isHeader && <button type="button" className="whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-[#0747A6] hover:bg-[#DEEBFF]" onClick={() => { setAddItemCat(row.label); setShowAddCat(false) }}>+ item</button>}
             <RenameControl value={row.label} onRename={(n) => { renameRow('expenses', row.key, row.isHeader ? `_${n}` : n); toast.success(`Renamed to ${n}`) }} />

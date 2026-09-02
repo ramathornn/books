@@ -67,7 +67,8 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
   const netSavings = totalIncome.map((v, i) => v - totalExpenses[i])
 
   const endingBalance: number[] = []
-  const snapshots = data.bankBalances || {}
+  const snapshots: Record<string, { amount: number; day: number }> = { ...(data.bankBalances || {}) }
+  if (data.linkedBank && !snapshots[String(data.linkedBank.monthIndex)]) snapshots[String(data.linkedBank.monthIndex)] = { amount: data.linkedBank.amount, day: data.linkedBank.day }
   netSavings.forEach((v, i) => {
     const snap = snapshots[String(i)]
     if (snap) endingBalance.push(snap.amount)

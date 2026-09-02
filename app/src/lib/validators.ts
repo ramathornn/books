@@ -291,6 +291,8 @@ const forecastName = z.string().trim().min(1).max(120).refine((s) => !s.startsWi
 
 export const forecastScenarioPatchSchema = z.object({
   name: forecastName.optional(),
+  booksLinked: z.boolean().optional(),
+  ownerPayGlAccountIds: z.array(z.string()).max(50).optional(),
   viewFrom: z.number().int().min(0).optional(),
   viewTo: z.number().int().min(0).optional(),
   monthCount: z.number().int().min(1).max(240).optional(),
