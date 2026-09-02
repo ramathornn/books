@@ -172,6 +172,74 @@ const bottomLinks: BottomLink[] = [
   { label: 'Settings', href: '/settings' },
 ]
 
+// Forecasts (WealthPilot) navigation — swapped in when the URL is under /forecasts.
+const forecastNavItems: NavItem[] = [
+  {
+    label: 'Overview',
+    href: '/forecasts',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Cash Flow',
+    href: '/forecasts/cashflow',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12M8 7l-4 4M8 7l-4-4M16 17H4m12 0l4-4m-4 4l4 4" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Income',
+    href: '/forecasts/income',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.2 0-4 1.1-4 2.5S9.8 13 12 13s4 1.1 4 2.5-1.8 2.5-4 2.5m0-10V6m0 12v-2m8-4a8 8 0 11-16 0 8 8 0 0116 0z" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Expenses',
+    href: '/forecasts/expenses',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h2m4 0h4M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Debts',
+    href: '/forecasts/debts',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6m-7 4h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Assets',
+    href: '/forecasts/assets',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-8 9 8M5 10v10h14V10" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Settings',
+    href: '/forecasts/settings',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.3 4.3a1.7 1.7 0 013.4 0l.1.6a1.7 1.7 0 002.5 1l.5-.3a1.7 1.7 0 012.4 2.4l-.3.5a1.7 1.7 0 001 2.5l.6.1a1.7 1.7 0 010 3.4l-.6.1a1.7 1.7 0 00-1 2.5l.3.5a1.7 1.7 0 01-2.4 2.4l-.5-.3a1.7 1.7 0 00-2.5 1l-.1.6a1.7 1.7 0 01-3.4 0l-.1-.6a1.7 1.7 0 00-2.5-1l-.5.3a1.7 1.7 0 01-2.4-2.4l.3-.5a1.7 1.7 0 00-1-2.5l-.6-.1a1.7 1.7 0 010-3.4l.6-.1a1.7 1.7 0 001-2.5l-.3-.5a1.7 1.7 0 012.4-2.4l.5.3a1.7 1.7 0 002.5-1z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+]
+
 export default function Sidebar({
   companyName,
   readOnly = false,
@@ -185,9 +253,11 @@ export default function Sidebar({
 
   // Accountant (read-only) sessions: Estimates, Team Members and Settings are
   // hidden (the proxy also blocks the routes server-side).
+  const inForecasts = !!pathname?.startsWith('/forecasts')
+  const baseNavItems = inForecasts ? forecastNavItems : navItems
   const visibleNavItems = readOnly
-    ? navItems.filter((i) => i.href !== '/estimates')
-    : navItems
+    ? baseNavItems.filter((i) => i.href !== '/estimates')
+    : baseNavItems
   const visibleBottomLinks = readOnly
     ? bottomLinks.filter((l) => l.href !== '/team-members' && l.href !== '/settings')
     : bottomLinks
@@ -195,6 +265,7 @@ export default function Sidebar({
   function isActive(href: string) {
     if (href === '#') return false
     if (href === '/dashboard') return pathname === '/dashboard'
+    if (href === '/forecasts') return pathname === '/forecasts'
     if (href === '/items') return pathname === '/items'
     if (href === '/settings') return pathname?.startsWith('/settings')
     if (href === '/team-members') return pathname?.startsWith('/team-members')
@@ -352,6 +423,30 @@ export default function Sidebar({
           )
         })}
       </nav>
+
+      {/* Books / Forecasts switch — route-based, no client state */}
+      <div className="px-3 py-2 border-t border-white/15 flex-shrink-0" style={{ fontFamily: 'var(--font-body)' }}>
+        <div className="flex rounded bg-[#002D79]/60 p-0.5" role="tablist" aria-label="Product">
+          {[
+            { label: 'Books', href: '/dashboard', active: !inForecasts },
+            { label: 'Forecasts', href: '/forecasts', active: inForecasts },
+          ].map((t) => (
+            <Link
+              key={t.label}
+              href={t.href}
+              role="tab"
+              aria-selected={t.active}
+              className={
+                t.active
+                  ? 'flex-1 text-center px-2 py-1 text-[12px] font-semibold rounded bg-white text-[#002D79]'
+                  : 'flex-1 text-center px-2 py-1 text-[12px] text-white/80 hover:text-white rounded'
+              }
+            >
+              {t.label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {/* Bottom links — flex-shrink-0 so they're never clipped when nav is full */}
       <div

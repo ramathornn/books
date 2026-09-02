@@ -146,6 +146,13 @@ function isPublicInvoiceEditRequest(pathname: string, method: string): boolean {
   return /^\/api\/invoices\/[^/]+$/.test(pathname)
 }
 
+// Forecasts API — GET reads bypass the session redirect so headless agents can
+// query scenarios (handlers use requireApiAuth). Every mutating verb still
+// requires the session cookie, and the handlers additionally reject accountants.
+function isPublicForecastRead(pathname: string, method: string): boolean {
+  return method === 'GET' && pathname.startsWith('/api/forecasts')
+}
+
 // Journal-entry per-id routes — /api/journal-entries/{id} (GET/PUT/DELETE) and
 // /api/journal-entries/{id}/reverse (POST). All do their own bearer-or-session
 // auth (requireApiAuth) in the route handler.
@@ -279,6 +286,11 @@ export async function proxy(request: NextRequest) {
 
   // Allow invoice read/edit (GET/PUT only; route does its own bearer/session auth)
   if (isPublicInvoiceEditRequest(pathname, request.method)) {
+    return addSecurityHeaders(NextResponse.next())
+  }
+
+  // Allow forecast reads (route does its own bearer/session auth)
+  if (isPublicForecastRead(pathname, request.method)) {
     return addSecurityHeaders(NextResponse.next())
   }
 
