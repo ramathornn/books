@@ -21,7 +21,7 @@ Books is the result. It is opinionated toward a small owner-operated business, b
 
 ### Built for AI agents
 
-Because it was built *with* an agent, it was also built *for* one. Every meaningful action is an API route, and the machine-facing ones (`/api/invoices`, `/api/invoices/{id}` (GET/PUT), `/api/payments`, `/api/journal-entries`, `/api/gl-accounts`, `/api/banking/*`, `/api/files/*`, …) accept a bearer token (`FILES_API_TOKEN`) as well as a browser session. That means you can point Claude Code, an MCP server, a cron job, or any script at your instance and get an effective AI bookkeeper:
+Because it was built *with* an agent, it was also built *for* one. Every meaningful action is an API route, and the machine-facing ones (`/api/invoices`, `/api/invoices/{id}` (GET/PUT), `/api/payments`, `/api/journal-entries`, `/api/gl-accounts`, `/api/banking/*`, `/api/files/*`, `/api/forecasts/*` (reads), …) accept a bearer token (`FILES_API_TOKEN`) as well as a browser session. That means you can point Claude Code, an MCP server, a cron job, or any script at your instance and get an effective AI bookkeeper:
 
 - drop a folder of receipts in and have them uploaded, OCR'd (Claude vision), and filed against the right expense accounts
 - pull pending bank transactions, categorize / match / split them, and post the journal entries
@@ -29,6 +29,32 @@ Because it was built *with* an agent, it was also built *for* one. Every meaning
 - ask plain-English questions against the ledger and get answers that tie out to the reports
 
 You stay in control — the agent works through the same audited, period-locked endpoints the UI uses, and every mutation lands in the audit log.
+
+## Forecasts
+
+Books ships with a second surface, **Forecasts**, toggled from the sidebar. It is a
+month-by-month cash-flow planner (ported from a standalone desktop tool) that lives
+alongside the accounting side without touching it:
+
+- **Two scenarios out of the box.** *Business* is linked to Books: income rows are your
+  active clients (invoiced this month or last) with collected payments as actuals, open
+  invoices on their expected pay date (the client's average days-to-pay, else the due
+  date), and drafts and recurring templates projected forward; expense rows come from
+  open bills, recurring items, and categorized spend at a trailing run rate; cash on
+  hand anchors to your bank GL balances. Months Books already knows about are locked;
+  future months with nothing scheduled are yours to forecast, and Books replaces them
+  as you invoice. *Personal* is fully manual, with an optional "From Business" row fed
+  by the GL accounts you pay yourself from.
+- **Spreadsheet grid** with formulas (`=income.Salary * 0.9`, cross-month references),
+  fill-down, drag reorder, and per-cell "lands on day N" for a day-by-day timeline.
+- **Pages:** Overview, Cash Flow (daily timeline + monthly), Income, Expenses, Taxes
+  (basic projected corporate or personal bill using the tax module's rate tables),
+  Debts (amortizing loans, linked payments), Assets (net worth), Settings (FX
+  overrides, exports).
+- **Agent-readable.** `GET /api/forecasts/{id}/projection?asOf=YYYY-MM-DD` returns the
+  expected balance, low point ahead, monthly totals, dated upcoming events, and which
+  rows and months are Books-backed vs manual; `GET /api/forecasts/{id}/taxes` returns
+  the projected bill. Reads accept the bearer token; every write requires a session.
 
 ## Stack
 
