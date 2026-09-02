@@ -149,7 +149,12 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   // ── Cells ──────────────────────────────────────────────────────────────
 
   const updateCells = useCallback((section: Section, key: string, entries: { index: number; value: CellValue }[]) => {
-    if (!entries.length || linkedGuard(section, key)) return
+    if (!entries.length) return
+    const cur = dataRef.current
+    if (cur.linked[section]?.[key]) {
+      const locked = cur.linkedOverride[section]?.[key]
+      if (entries.some((e) => locked?.[e.index] ?? true)) { toast.error('That month comes from Books. Only future months without Books activity can be forecast by hand.'); return }
+    }
     void mutate(
       (prev) => {
         const next = clone(prev)
@@ -159,7 +164,15 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
         return next
       },
       async (next) => {
-        const id = rowId(next, section, key)
+        let id = rowId(next, section, key)
+        if (!id && next.linked[section]?.[key] && (section === 'income' || section === 'expenses')) {
+          // First manual forecast on a Books row: create its shadow row (same name) to hold future months.
+          const res = await api(`${base}/rows`, 'POST', { section: API_SECTION[section], name: key, currency: 'CAD' })
+          id = ((await res.json()) as { id: string }).id
+          const nid = id
+          setData((prev) => { const n2 = clone(prev); n2.ids.rows[section][key] = nid; return n2 })
+          dataRef.current = { ...dataRef.current, ids: { ...dataRef.current.ids, rows: { ...dataRef.current.ids.rows, [section]: { ...dataRef.current.ids.rows[section], [key]: nid } } } }
+        }
         if (!id) throw new Error('Row not saved yet; try again')
         await api(`${base}/cells`, 'PUT', { cells: entries.map((e) => ({ rowId: id, monthIndex: e.index, value: e.value })) })
       }

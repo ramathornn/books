@@ -64,6 +64,8 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
     }
     return arr
   }
+  // Which months of a manual row actually have a stored cell (a deliberate 0 counts).
+  const presence = new Map<string, Set<number>>()
 
   const income: ForecastData['income'] = {}
   const incomeCurrencies: Record<string, string> = {}
@@ -88,6 +90,7 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
   }
 
   for (const r of s.rows) {
+    presence.set(r.id, new Set(r.cells.map((c) => c.monthIndex)))
     if (r.section === 'income') {
       income[r.name] = series(r.cells)
       ids.rows.income[r.name] = r.id
@@ -145,21 +148,35 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
 
   // ── Books-derived rows (read-only, rebuilt every load) ───────────────
   const linked: ForecastData['linked'] = {}
+  const linkedOverride: ForecastData['linkedOverride'] = {}
   const bookEvents: BookEvent[] = []
   let linkedBank: ForecastData['linkedBank'] = null
   const now = new Date()
-  const uniqueName = (section: Section, name: string): string => {
-    const taken = section === 'income' ? income : section === 'expenses' ? expenses : receivables
-    let candidate = name
-    let i = 2
-    while (candidate in taken) candidate = `${name} (${i++})`
-    return candidate
-  }
-  const attach = (section: Section, name: string, cells: CellValue[], info: LinkedInfo, events: BookEvent[]) => {
-    const finalName = uniqueName(section, name)
-    if (finalName !== name) for (const e of events) if (e.row === name) e.row = finalName
-    ;(section === 'income' ? income : (expenses as Record<string, CellValue[]>))[finalName] = cells
-    ;(linked[section] ||= {})[finalName] = info
+  const todayIdx = currentMonthIndex(months, now)
+  // Merge a Books-derived row with the user's same-named manual row ("shadow"):
+  //   month <= today            → Books (actuals / current activity)
+  //   future month with real Books activity (invoice, draft, recurring, bill) → Books
+  //   future month otherwise    → user's manual cell if stored, else Books run-rate / 0
+  const attach = (section: 'income' | 'expenses', name: string, cells: CellValue[], info: LinkedInfo, events: BookEvent[]) => {
+    const store = section === 'income' ? income : (expenses as Record<string, CellValue[] | null>)
+    const manual = store[name] ?? null
+    const manualId = ids.rows[section][name]
+    const stored = manualId ? presence.get(manualId) ?? new Set<number>() : new Set<number>()
+    const realActivity = new Set(events.filter((e) => e.row === name && e.kind !== 'runrate').map((e) => e.monthIndex))
+    const override: boolean[] = new Array(n).fill(false)
+    const merged: CellValue[] = new Array(n).fill(0)
+    for (let i = 0; i < n; i++) {
+      const booksWins = i <= todayIdx || realActivity.has(i) || !manual || !stored.has(i)
+      override[i] = i <= todayIdx || realActivity.has(i)
+      merged[i] = booksWins ? cells[i] : manual![i]
+      if (!booksWins) {
+        // Drop Books' run-rate events for months the user forecasts by hand.
+        for (let k = events.length - 1; k >= 0; k--) if (events[k].row === name && events[k].monthIndex === i) events.splice(k, 1)
+      }
+    }
+    store[name] = merged
+    ;(linked[section] ||= {})[name] = info
+    ;(linkedOverride[section] ||= {})[name] = override
   }
   if (s.booksLinked) {
     const [inc, exp] = await Promise.all([buildBooksIncome(months, now), buildBooksExpenses(months, now)])
@@ -173,7 +190,6 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
       for (const r of exp.rows.filter((x) => x.category === c)) attach('expenses', r.name, r.cells, r.linked, exp.events)
     }
     bookEvents.push(...exp.events)
-    const todayIdx = currentMonthIndex(months, now)
     if (todayIdx >= 0 && todayIdx < n && !bankBalances[String(todayIdx)]) {
       try {
         const asOf = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999))
@@ -192,6 +208,7 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
     booksLinked: s.booksLinked,
     ownerPayGlAccountIds: s.ownerPayGlAccountIds,
     linked,
+    linkedOverride,
     bookEvents,
     linkedBank,
     id: s.id,

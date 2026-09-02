@@ -63,7 +63,7 @@ export interface LinkedInfo {
   note?: string
 }
 
-export type BookEventKind = 'collected' | 'expected' | 'draft' | 'recurring' | 'bill' | 'spend' | 'owner-pay'
+export type BookEventKind = 'collected' | 'expected' | 'draft' | 'recurring' | 'bill' | 'spend' | 'owner-pay' | 'runrate'
 
 /** A dated cash event derived from Books, in CAD. `row` matches a linked row name. */
 export interface BookEvent {
@@ -84,6 +84,8 @@ export interface ForecastData extends ScenarioSummary {
   linked: Partial<Record<Section, Record<string, LinkedInfo>>>
   /** Day-level Books events backing the linked rows (drives the timeline). */
   bookEvents: BookEvent[]
+  /** For each linked row, which month indexes are locked to Books (past/current months, or future months with real Books activity). Other months hold the user's manual forecast. */
+  linkedOverride: Partial<Record<Section, Record<string, boolean[]>>>
   /** Cash-on-hand anchor taken from Books banking (only when booksLinked and no manual snapshot that month). */
   linkedBank: { monthIndex: number; day: number; amount: number; asOf: string } | null
   months: string[]

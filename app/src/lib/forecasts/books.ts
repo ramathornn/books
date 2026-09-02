@@ -303,7 +303,7 @@ export async function buildBooksExpenses(months: string[], now = new Date()): Pr
     const avg = r2(t.sum / TRAILING_MONTHS)
     if (avg <= 0) continue
     const r = rowFor(BOOKS_EXPENSE_CATEGORIES.spend, t.name, { source: 'spend', refId: catId, note: `Actuals to date; future months at ${TRAILING_MONTHS}-month average` })
-    for (let i = g.todayIdx + 1; i < g.labels.length; i++) add(r, dateInMonth(g, i, 15), avg, 'spend', `${t.name} (run rate)`)
+    for (let i = g.todayIdx + 1; i < g.labels.length; i++) add(r, dateInMonth(g, i, 15), avg, 'runrate', `${t.name} (run rate)`)
   }
 
   for (const r of rowMap.values()) rows.push(r)
@@ -355,7 +355,7 @@ export async function buildOwnerPay(glAccountIds: string[], months: string[], no
   if (avg > 0) {
     for (let i = g.todayIdx + 1; i < g.labels.length; i++) {
       row.cells[i] = avg
-      events.push({ date: toISO(dateInMonth(g, i, 28)), monthIndex: i, section: 'income', row: row.name, amount: avg, kind: 'owner-pay', label: 'From Business (run rate)' })
+      events.push({ date: toISO(dateInMonth(g, i, 28)), monthIndex: i, section: 'income', row: row.name, amount: avg, kind: 'runrate', label: 'From Business (run rate)' })
     }
   }
   rows.push(row)

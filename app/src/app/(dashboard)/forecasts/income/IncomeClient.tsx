@@ -39,7 +39,7 @@ export default function IncomeClient() {
       </div>
 
       <div className="mb-3 flex items-start justify-between gap-3">
-        <SectionTitle sub={data.booksLinked ? 'Rows tagged Books are active clients (invoiced this or last month): collected payments, open invoices on their expected pay date, drafts and recurring templates. Edit them in Books. Manual rows can still be added below.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on · Values in source currency, totals in CAD'}>Income data</SectionTitle>
+        <SectionTitle sub={data.booksLinked ? 'Rows tagged Books are active clients (invoiced this or last month). Shaded months are Books: past and current months show actuals, and any future month with an invoice, draft or recurring template is locked to it. Unshaded future months are yours to forecast; Books replaces them as you invoice.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on · Values in source currency, totals in CAD'}>Income data</SectionTitle>
         {!readOnly && (
           <div className="flex gap-2">
             {!data.booksLinked && <button type="button" disabled={importing} title="Fill a row with invoiced revenue from Books, in CAD, for every month in the workbook" onClick={async () => { setImporting(true); if (await importBooksRevenue()) toast.success('Imported invoiced revenue from Books'); setImporting(false) }} className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">{importing ? 'Importing…' : 'Import from Books'}</button>}

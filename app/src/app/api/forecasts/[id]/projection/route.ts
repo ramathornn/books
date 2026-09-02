@@ -53,8 +53,8 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     summaryForView: { sumIncome: Math.round(c.sumIncome), sumExpenses: Math.round(c.sumExpenses), sumNet: Math.round(c.sumNet), savingsRate: Math.round(c.savingsRate * 10) / 10, lastBalance: Math.round(c.lastBalance) },
     upcomingEvents: upcoming.map((e) => ({ date: iso(e.date), label: e.label, amount: Math.round(e.amount), balanceAfter: Math.round(e.balance), section: e.section })),
     rows: {
-      income: Object.keys(data.income).map((k) => ({ name: k, linked: data.linked.income?.[k] ?? null, currency: data.incomeCurrencies[k] ?? 'CAD', monthly: data.months.map((_, i) => Math.round(Number(data.income[k][i]) || 0)) })),
-      expenses: Object.entries(data.expenses).filter(([k, v]) => v && !k.startsWith('_')).map(([k, v]) => ({ name: k, linked: data.linked.expenses?.[k] ?? null, monthly: data.months.map((_, i) => Math.round(Number(v![i]) || 0)) })),
+      income: Object.keys(data.income).map((k) => ({ name: k, linked: data.linked.income?.[k] ?? null, booksOwnedMonths: data.linkedOverride.income?.[k] ?? null, currency: data.incomeCurrencies[k] ?? 'CAD', monthly: data.months.map((_, i) => Math.round(Number(data.income[k][i]) || 0)) })),
+      expenses: Object.entries(data.expenses).filter(([k, v]) => v && !k.startsWith('_')).map(([k, v]) => ({ name: k, linked: data.linked.expenses?.[k] ?? null, booksOwnedMonths: data.linkedOverride.expenses?.[k] ?? null, monthly: data.months.map((_, i) => Math.round(Number(v![i]) || 0)) })),
       linkedIncomeRows: linkedRows('income'),
       linkedExpenseRows: linkedRows('expenses'),
     },
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     netWorth: Math.round(c.netWorth),
     notes: [
       'Amounts are CAD. Formula cells are already resolved in monthly totals; per-row monthly arrays show literal values only.',
-      data.booksLinked ? 'Income rows = active Books clients (invoiced this or last month): collected payments as actuals, open invoices on expected pay date (client average days-to-pay, else due date), drafts and recurring templates projected. Expense rows = open bills by due date, recurring templates/expenses, and categorized spend at a trailing 3-month average.' : 'Manual scenario: values are user-entered.',
+      data.booksLinked ? 'On Books-linked rows, booksOwnedMonths[i]=true means that month is locked to Books (actual or scheduled activity); false means it is the user\'s manual forecast for a future month. Income rows = active Books clients (invoiced this or last month): collected payments as actuals, open invoices on expected pay date (client average days-to-pay, else due date), drafts and recurring templates projected. Expense rows = open bills by due date, recurring templates/expenses, and categorized spend at a trailing 3-month average.' : 'Manual scenario: values are user-entered.',
     ],
   })
 }

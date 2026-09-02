@@ -25,6 +25,7 @@ interface CellProps {
   suggestions: RefSuggestion[]
   months: string[]
   readOnly: boolean
+  booksOwned?: boolean
   filling: boolean
   dayBadge: string | null
   globalSelectMode: boolean
@@ -33,7 +34,7 @@ interface CellProps {
   onContextMenu?: (e: React.MouseEvent, section: Section, key: string, index: number) => void
 }
 
-function EditableCell({ raw, resolved, section, dataKey, index, suggestions, months, readOnly, filling, dayBadge, globalSelectMode, onFillStart, onGlobalCellClick, onContextMenu }: CellProps) {
+function EditableCell({ raw, resolved, section, dataKey, index, suggestions, months, readOnly, booksOwned = false, filling, dayBadge, globalSelectMode, onFillStart, onGlobalCellClick, onContextMenu }: CellProps) {
   const { updateCell } = useForecast()
   const bar = useFormulaBar()
   const pathname = usePathname()
@@ -104,7 +105,7 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
   const hasFormula = isFormula(raw)
   return (
     <td
-      className={`relative border-b border-gray-100 p-0 ${filling ? 'bg-[#DEEBFF]' : ''} ${globalSelectMode && !editing ? 'outline-dashed outline-1 outline-[#0075DD]/60 -outline-offset-1' : ''}`}
+      className={`relative border-b border-gray-100 p-0 ${filling ? 'bg-[#DEEBFF]' : booksOwned ? 'bg-[#F5F9FF]' : ''} ${globalSelectMode && !editing ? 'outline-dashed outline-1 outline-[#0075DD]/60 -outline-offset-1' : ''}`}
       data-key={dataKey}
       data-month-idx={index}
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, section, dataKey, index) : undefined}
@@ -112,7 +113,7 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
       <div
         data-cell
         onClick={!editing ? startEdit : undefined}
-        title={readOnly ? 'Auto-calculated' : hasFormula && !editing ? getFormulaDisplay(raw) ?? undefined : undefined}
+        title={booksOwned ? 'From Books (actual or scheduled). Edit on the Books side.' : readOnly ? 'Auto-calculated' : hasFormula && !editing ? getFormulaDisplay(raw) ?? undefined : undefined}
         className={`group flex h-8 items-center justify-end gap-1 px-3 text-[13px] tabular-nums ${readOnly ? 'cursor-default text-gray-500' : 'cursor-text hover:bg-gray-50'} ${hasFormula ? 'text-[#0747A6]' : 'text-gray-900'} ${globalSelectMode && !editing ? 'cursor-crosshair' : ''}`}
       >
         {dayBadge && <span className="rounded bg-[#FFF4E0] px-1 text-[10px] font-medium text-[#8F5E00]" title={`Lands on ${dayBadge === 'EOM' ? 'last day of month' : 'day ' + dayBadge}`}>{dayBadge}</span>}
@@ -330,7 +331,8 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
                 {rowActions && <td className="border-b border-gray-100 px-1 whitespace-nowrap">{rowActions(row)}</td>}
                 {viewData.map((val, i) => {
                   const absIdx = from + i
-                  const cellReadOnly = readOnly || !!row.linked || (hasComputed && absIdx > 0 && !editableComputedKeys?.[row.key])
+                  const booksOwned = !!row.linked && (data.linkedOverride[section]?.[row.key]?.[absIdx] ?? true)
+                  const cellReadOnly = readOnly || booksOwned || (hasComputed && absIdx > 0 && !editableComputedKeys?.[row.key])
                   let dayBadge: string | null = null
                   if (enableDayAssignment) {
                     const d = assignedDay(flowDays, section, row.key, absIdx)
@@ -347,12 +349,13 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
                       suggestions={suggestions}
                       months={data.months}
                       readOnly={cellReadOnly}
+                      booksOwned={booksOwned}
                       filling={isFilling(row.key, absIdx)}
                       dayBadge={dayBadge}
                       globalSelectMode={globalSelectMode}
                       onFillStart={cellReadOnly ? undefined : handleFillStart}
                       onGlobalCellClick={handleGlobalCellClick}
-                      onContextMenu={enableDayAssignment && !row.linked ? handleCellContextMenu : undefined}
+                      onContextMenu={enableDayAssignment && !booksOwned ? handleCellContextMenu : undefined}
                     />
                   )
                 })}

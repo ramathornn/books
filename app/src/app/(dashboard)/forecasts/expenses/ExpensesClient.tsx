@@ -34,7 +34,7 @@ export default function ExpensesClient() {
       </div>
 
       <div className="mb-3 flex items-start justify-between gap-3">
-        <SectionTitle sub={data.booksLinked ? 'Rows tagged Books come from open bills (by due date), recurring templates and expenses, and categorized spend at a trailing 3-month average. Edit them in Books. Manual categories can still be added below.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on'}>Expense data</SectionTitle>
+        <SectionTitle sub={data.booksLinked ? 'Rows tagged Books come from open bills, recurring templates and expenses, and categorized spend. Shaded months are Books: past and current months are actuals, and future months with a bill or recurring item are locked. Unshaded future months are yours to forecast; where you leave them empty, Books fills in the 3-month run rate.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on'}>Expense data</SectionTitle>
         {!readOnly && <AddButton onClick={() => { setShowAddCat(true); setAddItemCat(null) }}>Add category</AddButton>}
       </div>
       {showAddCat && <InlineAdd placeholder="Category name…" onCancel={() => setShowAddCat(false)} onSubmit={async (name) => { if (await addExpenseCategory(name)) { toast.success(`Category added: ${name}`); setShowAddCat(false) } }} />}

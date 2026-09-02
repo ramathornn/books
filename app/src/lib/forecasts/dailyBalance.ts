@@ -30,6 +30,9 @@ export function buildEvents(data: ForecastData, rates: Rates): CashEvent[] {
   // Books-linked rows come with day-level events already; skip their month cells.
   const linkedIncome = data.linked?.income ?? {}
   const linkedExpenses = data.linked?.expenses ?? {}
+  const ov = data.linkedOverride ?? {}
+  // A linked row's month is Books-owned when its override flag is set; otherwise it is a manual forecast.
+  const booksOwns = (section: 'income' | 'expenses', k: string, i: number) => !!(ov[section]?.[k]?.[i] ?? true)
   for (const e of data.bookEvents ?? []) {
     if (hidden[e.section]?.[e.row]) continue
     const [y, m, d] = e.date.split('-').map(Number)
@@ -41,7 +44,7 @@ export function buildEvents(data: ForecastData, rates: Rates): CashEvent[] {
     const p = parseMonthLabel(label)
     if (!p) return
     for (const [k, arr] of Object.entries(income)) {
-      if (!arr || k.startsWith('_') || hidden.income?.[k] || linkedIncome[k]) continue
+      if (!arr || k.startsWith('_') || hidden.income?.[k] || (linkedIncome[k] && booksOwns('income', k, monthIdx))) continue
       const v = resolveValue(arr[monthIdx], data, monthIdx)
       if (!v) continue
       const amount = convertToCAD(v, currencies[k] || 'CAD', rates)
@@ -50,7 +53,7 @@ export function buildEvents(data: ForecastData, rates: Rates): CashEvent[] {
       events.push({ date, t: date.getTime(), amount, label: k, section: 'income', monthIdx, day })
     }
     for (const [k, arr] of Object.entries(expenses)) {
-      if (!arr || k.startsWith('_') || hidden.expenses?.[k] || linkedExpenses[k]) continue
+      if (!arr || k.startsWith('_') || hidden.expenses?.[k] || (linkedExpenses[k] && booksOwns('expenses', k, monthIdx))) continue
       const v = resolveValue(arr[monthIdx], data, monthIdx)
       if (!v) continue
       const day = effectiveDay(flowDays, 'expenses', k, monthIdx, label)
