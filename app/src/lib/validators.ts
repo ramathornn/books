@@ -283,3 +283,69 @@ export const companySettingsSchema = z.object({
     // non-leap years, which is the correct reading of "the last day of February".
     { message: 'That day does not exist in the selected month', path: ['fiscalYearEndDay'] }
   )
+
+// ─── Forecasts ───────────────────────────────────────────────────────────────
+const forecastSection = z.enum(['income', 'expense', 'debt'])
+const forecastCellValue = z.union([z.number().finite(), z.string().max(500)])
+const forecastName = z.string().trim().min(1).max(120).refine((s) => !s.startsWith('_'), 'Names cannot start with "_"')
+
+export const forecastScenarioPatchSchema = z.object({
+  name: forecastName.optional(),
+  booksLinked: z.boolean().optional(),
+  ownerPayGlAccountIds: z.array(z.string()).max(50).optional(),
+  viewFrom: z.number().int().min(0).optional(),
+  viewTo: z.number().int().min(0).optional(),
+  monthCount: z.number().int().min(1).max(240).optional(),
+})
+
+export const forecastRowCreateSchema = z.object({
+  section: forecastSection,
+  name: forecastName,
+  currency: z.enum(['CAD', 'USD', 'EUR']).optional(),
+  categoryId: z.string().nullable().optional(),
+})
+
+export const forecastRowPatchSchema = z.object({
+  name: forecastName.optional(),
+  currency: z.enum(['CAD', 'USD', 'EUR']).optional(),
+  hidden: z.boolean().optional(),
+  categoryId: z.string().nullable().optional(),
+  debtType: z.enum(['loan', 'simple']).optional(),
+  interestRate: z.number().min(0).max(100).optional(),
+  amortizationMonths: z.number().int().min(1).max(600).nullable().optional(),
+  remainingMonths: z.number().int().min(1).max(600).nullable().optional(),
+  linkedExpenseId: z.string().nullable().optional(),
+  linkedAssetId: z.string().nullable().optional(),
+})
+
+export const forecastReorderSchema = z.object({
+  section: forecastSection,
+  categories: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })).optional(),
+  rows: z.array(z.object({ id: z.string(), sortOrder: z.number().int(), categoryId: z.string().nullable().optional() })),
+})
+
+export const forecastCellsSchema = z.object({
+  cells: z.array(z.object({ rowId: z.string(), monthIndex: z.number().int().min(0).max(239), value: forecastCellValue })).min(1).max(500),
+})
+
+export const forecastCategorySchema = z.object({ name: forecastName })
+
+export const forecastBankBalanceSchema = z.object({
+  monthIndex: z.number().int().min(0).max(239),
+  day: z.number().int().min(1).max(31).default(1),
+  amount: z.number().finite(),
+})
+
+export const forecastFlowDaySchema = z.object({
+  rowId: z.string(),
+  monthIndex: z.number().int().min(0).max(239),
+  day: z.union([z.number().int().min(1).max(31), z.literal('last')]),
+  scope: z.enum(['month', 'onward']),
+})
+
+export const forecastAssetSchema = z.object({
+  name: forecastName,
+  type: z.enum(['property', 'vehicle', 'investment', 'cash', 'other']).default('other'),
+  value: z.number().finite().default(0),
+  linkedDebtId: z.string().nullable().optional(),
+})

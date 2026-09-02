@@ -1531,3 +1531,166 @@ model T2ContinuityBalance {
   @@unique([fiscalYearEnd])
   @@map("t2_continuity_balances")
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Forecasts (ported from WealthPilot). A scenario is one independent forecast
+// workbook ("Personal", "Business"). Rows are monthly series (income, expense,
+// debt); cells hold either a numeric amount or a formula string that the
+// client-side engine evaluates (see src/lib/forecasts/formula.ts).
+// Months are a contiguous range starting at (startYear, startMonth) with
+// monthCount entries; cells/balances reference a month by 0-based index.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ForecastScenario {
+  id         String @id @default(uuid())
+  name       String
+  kind       String @default("personal") // 'personal' | 'business'
+  startYear  Int    @map("start_year")
+  startMonth Int    @map("start_month") // 0-11
+  monthCount Int    @default(12) @map("month_count")
+  viewFrom   Int    @default(0) @map("view_from")
+  viewTo     Int    @default(11) @map("view_to")
+  sortOrder  Int    @default(0) @map("sort_order")
+  // Books-linked scenario: income/expense rows are derived from Books invoices,
+  // bills, recurring templates and expenses at load time (read-only in the UI).
+  booksLinked Boolean @default(false) @map("books_linked")
+  // Personal scenario: GL accounts whose posted activity is owner compensation
+  // (salary, dividends, shareholder draws); feeds the "From Business" income row.
+  ownerPayGlAccountIds String[] @default([]) @map("owner_pay_gl_account_ids")
+
+  rows          ForecastRow[]
+  categories    ForecastCategory[]
+  assets        ForecastAsset[]
+  bankBalances  ForecastBankBalance[]
+  rateOverrides ForecastRateOverride[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("forecast_scenarios")
+}
+
+// Expense grouping header (WealthPilot's "_Category" rows).
+model ForecastCategory {
+  id         String           @id @default(uuid())
+  scenarioId String           @map("scenario_id")
+  scenario   ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  name       String
+  sortOrder  Int              @default(0) @map("sort_order")
+  rows       ForecastRow[]
+
+  @@unique([scenarioId, name])
+  @@map("forecast_categories")
+}
+
+model ForecastRow {
+  id         String           @id @default(uuid())
+  scenarioId String           @map("scenario_id")
+  scenario   ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  section    String // 'income' | 'expense' | 'debt'
+  name       String
+  sortOrder  Int              @default(0) @map("sort_order")
+  currency   String           @default("CAD") // income rows only
+  hidden     Boolean          @default(false)
+
+  // expense rows: owning category (null = uncategorized)
+  categoryId String?           @map("category_id")
+  category   ForecastCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // debt rows: balance mechanics
+  debtType           String         @default("simple") @map("debt_type") // 'loan' | 'simple'
+  interestRate       Decimal        @default(0) @map("interest_rate") @db.Decimal(7, 4) // annual %
+  amortizationMonths Int?           @map("amortization_months")
+  remainingMonths    Int?           @map("remaining_months")
+  linkedExpenseId    String?        @map("linked_expense_id")
+  linkedExpense      ForecastRow?   @relation("DebtLinkedExpense", fields: [linkedExpenseId], references: [id], onDelete: SetNull)
+  linkedByDebts      ForecastRow[]  @relation("DebtLinkedExpense")
+  linkedAssetId      String?        @map("linked_asset_id")
+  linkedAsset        ForecastAsset? @relation("DebtLinkedAsset", fields: [linkedAssetId], references: [id], onDelete: SetNull)
+
+  // assets that point at this debt row for equity math
+  securedAssets ForecastAsset[] @relation("AssetLinkedDebt")
+
+  cells    ForecastCell[]
+  flowDays ForecastFlowDay[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scenarioId, section, name])
+  @@index([scenarioId, section])
+  @@index([categoryId])
+  @@map("forecast_rows")
+}
+
+// One month of one row. Either a literal amount or a formula ("=income.Salary * 0.9").
+model ForecastCell {
+  id         String      @id @default(uuid())
+  rowId      String      @map("row_id")
+  row        ForecastRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  monthIndex Int         @map("month_index")
+  amount     Decimal     @default(0) @db.Decimal(14, 2)
+  formula    String?
+
+  @@unique([rowId, monthIndex])
+  @@map("forecast_cells")
+}
+
+// Day-of-month an income/expense cell lands on (drives the daily cash-flow
+// timeline). kind 'override' = this month only; 'schedule' = from this month
+// onward. day null = last day of the month.
+model ForecastFlowDay {
+  id         String      @id @default(uuid())
+  rowId      String      @map("row_id")
+  row        ForecastRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  monthIndex Int         @map("month_index")
+  kind       String // 'override' | 'schedule'
+  day        Int?
+
+  @@unique([rowId, monthIndex, kind])
+  @@map("forecast_flow_days")
+}
+
+model ForecastAsset {
+  id              String           @id @default(uuid())
+  scenarioId      String           @map("scenario_id")
+  scenario        ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  name            String
+  type            String           @default("other") // 'property' | 'vehicle' | 'investment' | 'cash' | 'other'
+  value           Decimal          @default(0) @db.Decimal(14, 2)
+  sortOrder       Int              @default(0) @map("sort_order")
+  linkedDebtId    String?          @map("linked_debt_id")
+  linkedDebt      ForecastRow?     @relation("AssetLinkedDebt", fields: [linkedDebtId], references: [id], onDelete: SetNull)
+  linkedFromDebts ForecastRow[]    @relation("DebtLinkedAsset")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scenarioId, name])
+  @@map("forecast_assets")
+}
+
+// Recorded "cash on hand" snapshot that re-anchors the running balance.
+model ForecastBankBalance {
+  id         String           @id @default(uuid())
+  scenarioId String           @map("scenario_id")
+  scenario   ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  monthIndex Int              @map("month_index")
+  day        Int              @default(1)
+  amount     Decimal          @db.Decimal(14, 2)
+
+  @@unique([scenarioId, monthIndex])
+  @@map("forecast_bank_balances")
+}
+
+// Manual FX override (units of CAD per 1 unit of currency) for a scenario.
+model ForecastRateOverride {
+  id         String           @id @default(uuid())
+  scenarioId String           @map("scenario_id")
+  scenario   ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  currency   String
+  rate       Decimal          @db.Decimal(18, 8)
+
+  @@unique([scenarioId, currency])
+  @@map("forecast_rate_overrides")
+}
