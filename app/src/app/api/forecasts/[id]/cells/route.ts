@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> }
 // Upsert one or more cells. A string starting with "=" is stored as a formula;
 // anything else is coerced to a number. Extends the month range if needed.
 export async function PUT(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   if (!(await scenarioExists(id))) return notFound()

@@ -146,11 +146,13 @@ function isPublicInvoiceEditRequest(pathname: string, method: string): boolean {
   return /^\/api\/invoices\/[^/]+$/.test(pathname)
 }
 
-// Forecasts API — GET reads bypass the session redirect so headless agents can
-// query scenarios (handlers use requireApiAuth). Every mutating verb still
-// requires the session cookie, and the handlers additionally reject accountants.
+// Forecasts API — GET/POST/PUT/PATCH bypass the session redirect so headless
+// agents can read and edit scenarios (handlers use requireApiAuth / writeAuth).
+// DELETE stays behind the session cookie, and the handlers additionally reject
+// accountants.
 function isPublicForecastRead(pathname: string, method: string): boolean {
-  return method === 'GET' && pathname.startsWith('/api/forecasts')
+  if (!pathname.startsWith('/api/forecasts')) return false
+  return method === 'GET' || method === 'POST' || method === 'PUT' || method === 'PATCH'
 }
 
 // Journal-entry per-id routes — /api/journal-entries/{id} (GET/PUT/DELETE) and

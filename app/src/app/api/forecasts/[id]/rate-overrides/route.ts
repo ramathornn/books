@@ -8,7 +8,7 @@ const schema = z.object({ currency: z.enum(['USD', 'EUR']), rate: z.number().pos
 
 // Set (rate) or clear (rate: null) a manual CAD-per-unit override for a currency.
 export async function PUT(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   if (!(await scenarioExists(id))) return notFound()

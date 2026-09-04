@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> }
 
 // Record (or replace) a cash-on-hand snapshot for a month.
 export async function PUT(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   if (!(await scenarioExists(id))) return notFound()
@@ -27,7 +27,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
 // Remove the snapshot for ?monthIndex=N.
 export async function DELETE(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   const monthIndex = Number.parseInt(request.nextUrl.searchParams.get('monthIndex') ?? '', 10)

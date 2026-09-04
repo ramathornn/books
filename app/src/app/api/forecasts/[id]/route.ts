@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
 
 // Rename, change the visible range, or extend the month range.
 export async function PATCH(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   const parsed = await parseBody(request, forecastScenarioPatchSchema)

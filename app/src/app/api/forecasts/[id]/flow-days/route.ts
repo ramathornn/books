@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> }
 // month only; 'onward' = schedule point from that month forward (and clears
 // any override at the same month, mirroring the WealthPilot updater).
 export async function PUT(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   const parsed = await parseBody(request, forecastFlowDaySchema)
@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
 // Clear both the override and any schedule point at ?rowId=&monthIndex=.
 export async function DELETE(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   const sp = request.nextUrl.searchParams

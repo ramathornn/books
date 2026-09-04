@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> }
 // Persist a full ordering for one section (and, for expenses, category order +
 // membership). The client sends the complete order after a drag-and-drop.
 export async function PUT(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   if (!(await scenarioExists(id))) return notFound()

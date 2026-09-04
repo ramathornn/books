@@ -6,7 +6,7 @@ import { forecastCategorySchema } from '@/lib/validators'
 type Ctx = { params: Promise<{ id: string; catId: string }> }
 
 export async function PATCH(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id, catId } = await params
   const cat = await prisma.forecastCategory.findFirst({ where: { id: catId, scenarioId: id }, select: { id: true } })
@@ -23,8 +23,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
 }
 
 // Deleting a category deletes the rows inside it (WealthPilot semantics).
-export async function DELETE(_request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+export async function DELETE(request: NextRequest, { params }: Ctx) {
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id, catId } = await params
   const cat = await prisma.forecastCategory.findFirst({ where: { id: catId, scenarioId: id }, select: { id: true } })

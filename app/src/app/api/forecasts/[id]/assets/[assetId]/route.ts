@@ -6,7 +6,7 @@ import { forecastAssetSchema } from '@/lib/validators'
 type Ctx = { params: Promise<{ id: string; assetId: string }> }
 
 export async function PATCH(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id, assetId } = await params
   const asset = await prisma.forecastAsset.findFirst({ where: { id: assetId, scenarioId: id }, select: { id: true } })
@@ -31,8 +31,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+export async function DELETE(request: NextRequest, { params }: Ctx) {
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id, assetId } = await params
   const asset = await prisma.forecastAsset.findFirst({ where: { id: assetId, scenarioId: id }, select: { id: true } })

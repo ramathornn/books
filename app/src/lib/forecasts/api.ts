@@ -12,8 +12,16 @@ export async function readAuth(request: NextRequest): Promise<Response | null> {
   return authed.ok ? null : Response.json({ error: 'Unauthorized' }, { status: authed.status })
 }
 
-/** Writes: session only (owner). The proxy already blocks accountant mutations. */
-export async function writeAuth(): Promise<Response | null> {
+/**
+ * Writes: bearer token (headless agents) OR owner session. DELETE stays
+ * session-only (the proxy also keeps DELETE behind the session redirect).
+ * Accountant sessions are read-only.
+ */
+export async function writeAuth(request: NextRequest): Promise<Response | null> {
+  if (request.method !== 'DELETE') {
+    const authed = await requireApiAuth(request)
+    if (authed.ok && authed.via === 'bearer') return null
+  }
   const session = await auth()
   if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role === 'accountant') return Response.json({ error: 'Read-only access', code: 'READ_ONLY_ROLE' }, { status: 403 })

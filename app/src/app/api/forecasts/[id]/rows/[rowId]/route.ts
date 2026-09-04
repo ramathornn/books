@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ id: string; rowId: string }> }
 
 // Rename / retag / hide a row, or change a debt's balance mechanics.
 export async function PATCH(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id, rowId } = await params
   const row = await prisma.forecastRow.findFirst({ where: { id: rowId, scenarioId: id }, select: { id: true, section: true } })
@@ -54,8 +54,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
 }
 
 // Delete a row and its cells. Links from other rows/assets are nulled by the schema.
-export async function DELETE(_request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+export async function DELETE(request: NextRequest, { params }: Ctx) {
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id, rowId } = await params
   const row = await prisma.forecastRow.findFirst({ where: { id: rowId, scenarioId: id }, select: { id: true } })

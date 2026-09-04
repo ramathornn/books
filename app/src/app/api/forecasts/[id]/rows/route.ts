@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ id: string }> }
 
 // Add an income / expense / debt row (appended to the end of its section or category).
 export async function POST(request: NextRequest, { params }: Ctx) {
-  const denied = await writeAuth()
+  const denied = await writeAuth(request)
   if (denied) return denied
   const { id } = await params
   if (!(await scenarioExists(id))) return notFound()
