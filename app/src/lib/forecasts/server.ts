@@ -45,7 +45,7 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
           linkedAsset: { select: { name: true } },
         },
       },
-      assets: { orderBy: { sortOrder: 'asc' }, include: { linkedDebt: { select: { name: true } } } },
+      assets: { orderBy: { sortOrder: 'asc' }, include: { linkedDebt: { select: { name: true } }, valuations: { orderBy: { asOf: 'asc' } } } },
       bankBalances: true,
       rateOverrides: true,
     },
@@ -136,7 +136,13 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
 
   const assets: Record<string, Asset> = {}
   for (const a of s.assets) {
-    assets[a.name] = { value: dec(a.value), type: (a.type as Asset['type']) || 'other', linkedDebt: a.linkedDebt?.name ?? null }
+    assets[a.name] = {
+      value: dec(a.value),
+      type: (a.type as Asset['type']) || 'other',
+      linkedDebt: a.linkedDebt?.name ?? null,
+      reviewCadence: (a.reviewCadence as Asset['reviewCadence']) || 'quarterly',
+      valuations: a.valuations.map((v) => ({ asOf: v.asOf.toISOString().slice(0, 10), value: dec(v.value), source: v.source, note: v.note })),
+    }
     ids.assets[a.name] = a.id
   }
 

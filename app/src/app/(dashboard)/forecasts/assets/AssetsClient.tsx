@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
-import { CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
+import { AreaChart, CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
 import { AddButton, Card, CategoryBars, Hero, iconBtnDanger, MetricGrid, RenameControl, SectionTitle, TrashIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import type { Asset } from '@/lib/forecasts/types'
@@ -14,10 +14,33 @@ const TYPES: { value: Asset['type']; label: string }[] = [
 ]
 const typeLabel = (t: string) => TYPES.find((x) => x.value === t)?.label ?? 'Other'
 
+const CADENCES: { value: Asset['reviewCadence']; label: string }[] = [
+  { value: 'monthly', label: 'Review monthly' }, { value: 'quarterly', label: 'Review quarterly' },
+  { value: 'annual', label: 'Review yearly' }, { value: 'none', label: 'No review' },
+]
+const CADENCE_DAYS: Record<string, number> = { monthly: 30, quarterly: 91, annual: 365 }
+
+/** "Valued 12 days ago" / "Never re-valued", flagged stale once the cadence has elapsed. */
+function valuationStatus(a: Asset): { label: string; stale: boolean } {
+  const last = a.valuations.at(-1)
+  if (!last) return { label: 'Never re-valued — still the figure you typed', stale: a.reviewCadence !== 'none' }
+  const days = Math.floor((Date.now() - new Date(last.asOf).getTime()) / 86400000)
+  const window = CADENCE_DAYS[a.reviewCadence] ?? null
+  const stale = window !== null && days >= window
+  const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`
+  return { label: `Valued ${ago}${last.source === 'agent' ? ' by agent' : ''}${stale ? ' · due for review' : ''}`, stale }
+}
+
 export default function AssetsClient() {
   const { data, computed, addAsset, updateAsset, removeAsset, renameAsset, readOnly } = useForecast()
-  const { netWorth, totalAssetValue, totalLiabilities, assetsByType, todayIdx, debtBalances } = computed
+  const { netWorth, totalAssetValue, totalLiabilities, assetsByType, todayIdx, debtBalances, viewMonths, netWorthSeries, liabilitySeries, from } = computed
   const [showAdd, setShowAdd] = useState(false)
+  // Net worth = (assets + cash) − debts, so the gross side is just net + debts.
+  const netWorthData = useMemo(() => viewMonths.map((month, i) => {
+    const net = netWorthSeries[from + i] ?? 0
+    const debts = liabilitySeries[from + i] ?? 0
+    return { month, 'Net worth': Math.round(net), 'Assets + cash': Math.round(net + debts), Debts: Math.round(debts) }
+  }), [viewMonths, netWorthSeries, liabilitySeries, from])
   const [form, setForm] = useState({ name: '', value: '', type: 'other' as Asset['type'], linkedDebt: '' })
   const [confirmKey, setConfirmKey] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState<string | null>(null)
@@ -80,13 +103,32 @@ export default function AssetsClient() {
               <div className="flex flex-wrap items-center gap-2 text-[12px] text-gray-500">
                 <select value={a.type} disabled={readOnly} onChange={(e) => updateAsset(name, { type: e.target.value as Asset['type'] })} className="h-7 rounded border border-gray-300 bg-white px-1 text-[12px]">{TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select>
                 <select value={a.linkedDebt ?? ''} disabled={readOnly} onChange={(e) => { updateAsset(name, { linkedDebt: e.target.value || null }); toast.success(e.target.value ? `Linked to ${e.target.value}` : 'Unlinked') }} className="h-7 rounded border border-gray-300 bg-white px-1 text-[12px]"><option value="">No linked debt</option>{debtKeys.map((k) => <option key={k}>{k}</option>)}</select>
+                <select value={a.reviewCadence} disabled={readOnly} title="How often this value should be re-checked" onChange={(e) => { updateAsset(name, { reviewCadence: e.target.value as Asset['reviewCadence'] }); toast.success('Review cadence updated') }} className="h-7 rounded border border-gray-300 bg-white px-1 text-[12px]">
+                  {CADENCES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
               </div>
+              <p className={`mt-2 text-[12px] ${valuationStatus(a).stale ? 'text-[#BF2600]' : 'text-gray-400'}`}>{valuationStatus(a).label}</p>
               {a.linkedDebt && <p className="mt-2 text-[12px]">Owes {fmtMoney(linkedBalance)} · <span className={equity >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}>Equity {fmtMoney(equity)}</span></p>}
             </div>
           )
         })}
         {!entries.length && !showAdd && <p className="text-sm text-gray-400">No assets yet.</p>}
       </div>
+
+      <Card title="Net worth over time" className="mb-4">
+        <AreaChart
+          data={netWorthData}
+          areas={[
+            { dataKey: 'Net worth', color: CHART_COLORS[0] },
+            { dataKey: 'Assets + cash', color: CHART_COLORS[1] },
+            { dataKey: 'Debts', color: CHART_COLORS[4] },
+          ]}
+          height={280}
+        />
+        <p className="mt-2 text-[12px] text-gray-500">
+          Assets are carried at their most recent valuation as of each month, plus projected cash, minus outstanding debt. Re-value an asset and the line steps at that date rather than rewriting history.
+        </p>
+      </Card>
 
       {byType.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">

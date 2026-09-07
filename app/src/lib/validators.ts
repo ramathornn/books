@@ -349,4 +349,13 @@ export const forecastAssetSchema = z.object({
   type: z.enum(['property', 'vehicle', 'investment', 'cash', 'other']).default('other'),
   value: z.number().finite().default(0),
   linkedDebtId: z.string().nullable().optional(),
+  reviewCadence: z.enum(['monthly', 'quarterly', 'annual', 'none']).optional(),
+})
+
+/** A dated re-valuation of an asset. `asOf` defaults to today (YYYY-MM-DD). */
+export const forecastAssetValuationSchema = z.object({
+  value: z.number().finite().nonnegative(),
+  asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  source: z.enum(['manual', 'agent', 'market']).default('agent'),
+  note: z.string().max(500).nullable().optional(),
 })

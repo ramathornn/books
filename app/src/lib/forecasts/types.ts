@@ -22,10 +22,21 @@ export interface DebtSettings {
 
 export type AssetType = 'property' | 'vehicle' | 'investment' | 'cash' | 'other'
 
+export interface AssetValuation {
+  asOf: string
+  value: number
+  source: string
+  note: string | null
+}
+
 export interface Asset {
   value: number
   type: AssetType
   linkedDebt: string | null
+  /** How often the value should be re-checked. */
+  reviewCadence: 'monthly' | 'quarterly' | 'annual' | 'none'
+  /** Dated value history, oldest first. Empty until the first re-valuation. */
+  valuations: AssetValuation[]
 }
 
 export interface BankSnapshot {

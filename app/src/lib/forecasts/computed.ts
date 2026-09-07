@@ -4,7 +4,7 @@
 import type { ForecastData, Rates } from './types'
 import { convertToCAD } from './currency'
 import { resolveValue } from './formula'
-import { currentMonthIndex } from './months'
+import { currentMonthIndex, parseMonthLabel } from './months'
 
 export interface CategoryTotal { name: string; totals: number[]; viewTotals: number[]; total: number }
 export interface AssetView { name: string; value: number; linkedDebt: string | null; linkedBalance: number; equity: number; type: string }
@@ -37,6 +37,10 @@ export interface Computed {
   totalAssetValue: number
   totalLiabilities: number
   netWorth: number
+  /** Net worth per month: assets (walked through their valuation history) + cash − debt. */
+  netWorthSeries: number[]
+  assetValueSeries: number[]
+  liabilitySeries: number[]
   assetsByType: Record<string, AssetView[]>
   debtBalances: Record<string, number[]>
 }
@@ -174,6 +178,28 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
   const totalLiabilities = totalDebt
   const netWorth = totalAssetValue - totalLiabilities
 
+  // Net worth over time. An asset holds its most recent valuation as of each
+  // month (and its earliest known one before that), so the line steps whenever a
+  // re-valuation lands instead of pretending today's number was always true.
+  const assetValueSeries = months.map((label) => {
+    const p = parseMonthLabel(label)
+    const key = p ? p.year * 12 + p.month : null
+    return Object.values(assets).reduce((sum, a) => {
+      const hist = a.valuations || []
+      if (!hist.length || key === null) return sum + (a.value || 0)
+      let val: number | null = null
+      for (const v of hist) {
+        const d = new Date(v.asOf)
+        if (Number.isNaN(d.getTime())) continue
+        if (d.getUTCFullYear() * 12 + d.getUTCMonth() <= key) val = v.value
+      }
+      // Before the first valuation, carry the earliest one back rather than today's.
+      return sum + (val ?? hist[0].value)
+    }, 0)
+  })
+  const liabilitySeries = months.map((_, i) => Object.values(debtBalances).reduce((s, b) => s + Math.max(0, b[i] || 0), 0))
+  const netWorthSeries = months.map((_, i) => assetValueSeries[i] + (endingBalance[i] || 0) - liabilitySeries[i])
+
   const assetsByType: Record<string, AssetView[]> = {}
   for (const [name, a] of Object.entries(assets)) {
     const t = a.type || 'other'
@@ -188,7 +214,7 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
     sumIncome, sumExpenses, sumNet, avgIncome, avgExpenses,
     lastBalance, totalDebt, savingsRate,
     expenseCategories, categoryTotals, growth, ratio,
-    totalAssetValue, totalLiabilities, netWorth, assetsByType,
+    totalAssetValue, totalLiabilities, netWorth, netWorthSeries, assetValueSeries, liabilitySeries, assetsByType,
     debtBalances,
   }
 }

@@ -1665,12 +1665,35 @@ model ForecastAsset {
   linkedDebtId    String?          @map("linked_debt_id")
   linkedDebt      ForecastRow?     @relation("AssetLinkedDebt", fields: [linkedDebtId], references: [id], onDelete: SetNull)
   linkedFromDebts ForecastRow[]    @relation("DebtLinkedAsset")
+  // How often this asset's value should be re-checked. Property and vehicles
+  // drift slowly (quarterly); market-linked holdings want monthly.
+  reviewCadence   String           @default("quarterly") @map("review_cadence") // 'monthly' | 'quarterly' | 'annual' | 'none'
+  valuations      ForecastAssetValuation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([scenarioId, name])
   @@map("forecast_assets")
+}
+
+// Dated history of what an asset was worth. `ForecastAsset.value` is always the
+// latest entry; this table is what makes net worth over time a real series
+// rather than today's number held flat. Written by hand or by an agent.
+model ForecastAssetValuation {
+  id      String        @id @default(uuid())
+  assetId String        @map("asset_id")
+  asset   ForecastAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asOf    DateTime      @map("as_of") @db.Date
+  value   Decimal       @default(0) @db.Decimal(14, 2)
+  source  String        @default("manual") // 'manual' | 'agent' | 'market'
+  note    String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([assetId, asOf])
+  @@index([assetId, asOf])
+  @@map("forecast_asset_valuations")
 }
 
 // Recorded "cash on hand" snapshot that re-anchors the running balance.

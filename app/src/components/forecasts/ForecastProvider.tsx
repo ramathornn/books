@@ -499,7 +499,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     if (dataRef.current.assets[n] !== undefined) { toast.error(`"${n}" already exists`); return false }
     let created: { id: string } | null = null
     const ok = await mutate(
-      (prev) => { const next = clone(prev); next.assets[n] = { value: value || 0, type: type || 'other', linkedDebt: linkedDebt || null }; return next },
+      (prev) => { const next = clone(prev); next.assets[n] = { value: value || 0, type: type || 'other', linkedDebt: linkedDebt || null, reviewCadence: 'quarterly', valuations: [] }; return next },
       async (next) => {
         created = await (await api(`${base}/assets`, 'POST', { name: n, value: value || 0, type: type || 'other', linkedDebtId: linkedDebt ? next.ids.rows.receivables[linkedDebt] ?? null : null })).json()
       }
@@ -519,7 +519,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
       async (next) => {
         if (!id) return
         const a = next.assets[name]
-        await api(`${base}/assets/${id}`, 'PATCH', { value: a.value, type: a.type, linkedDebtId: a.linkedDebt ? next.ids.rows.receivables[a.linkedDebt] ?? null : null })
+        await api(`${base}/assets/${id}`, 'PATCH', { value: a.value, type: a.type, reviewCadence: a.reviewCadence, linkedDebtId: a.linkedDebt ? next.ids.rows.receivables[a.linkedDebt] ?? null : null })
       }
     )
   }, [base, mutate])
