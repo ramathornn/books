@@ -155,14 +155,18 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
   const todayIdx = currentMonthIndex(months, now)
   // Merge a Books-derived row with the user's same-named manual row ("shadow"):
   //   month <= today            → Books (actuals / current activity)
-  //   future month with real Books activity (invoice, draft, recurring, bill) → Books
+  //   future month with real Books activity (sent invoice, recurring, bill) → Books
+  //   future month with only a draft invoice → user's manual cell wins if they set one
   //   future month otherwise    → user's manual cell if stored, else Books run-rate / 0
   const attach = (section: 'income' | 'expenses', name: string, cells: CellValue[], info: LinkedInfo, events: BookEvent[]) => {
     const store = section === 'income' ? income : (expenses as Record<string, CellValue[] | null>)
     const manual = store[name] ?? null
     const manualId = ids.rows[section][name]
     const stored = manualId ? presence.get(manualId) ?? new Set<number>() : new Set<number>()
-    const realActivity = new Set(events.filter((e) => e.row === name && e.kind !== 'runrate').map((e) => e.monthIndex))
+    // A draft invoice is not committed revenue, so it must not lock the month:
+    // the user keeps forecasting by hand until the invoice is actually sent.
+    // (Books still fills the cell when they have no manual value of their own.)
+    const realActivity = new Set(events.filter((e) => e.row === name && e.kind !== 'runrate' && e.kind !== 'draft').map((e) => e.monthIndex))
     const override: boolean[] = new Array(n).fill(false)
     const merged: CellValue[] = new Array(n).fill(0)
     for (let i = 0; i < n; i++) {
