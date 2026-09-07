@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSidebar } from './SidebarContext'
 
 interface NavItem {
@@ -263,6 +263,27 @@ export default function Sidebar({
   // Accountant (read-only) sessions: Estimates, Team Members and Settings are
   // hidden (the proxy also blocks the routes server-side).
   const inForecasts = !!pathname?.startsWith('/forecasts')
+
+  // Remember the last page visited on each side of the Books/Forecasts switch so
+  // toggling returns you where you were instead of the section landing page.
+  // Session-scoped on purpose: a new tab or a fresh session starts clean.
+  const [lastPaths, setLastPaths] = useState({ books: '/dashboard', forecasts: '/forecasts' })
+
+  useEffect(() => {
+    try {
+      setLastPaths({
+        books: sessionStorage.getItem('nav:last:books') || '/dashboard',
+        forecasts: sessionStorage.getItem('nav:last:forecasts') || '/forecasts',
+      })
+    } catch { /* private mode / storage disabled — fall back to the defaults */ }
+  }, [])
+
+  useEffect(() => {
+    if (!pathname) return
+    const side = pathname.startsWith('/forecasts') ? 'forecasts' : 'books'
+    setLastPaths((prev) => (prev[side] === pathname ? prev : { ...prev, [side]: pathname }))
+    try { sessionStorage.setItem(`nav:last:${side}`, pathname) } catch { /* ignore */ }
+  }, [pathname])
   const baseNavItems = inForecasts ? forecastNavItems : navItems
   const visibleNavItems = readOnly
     ? baseNavItems.filter((i) => i.href !== '/estimates')
@@ -433,12 +454,12 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* Books / Forecasts switch — route-based, no client state */}
+      {/* Books / Forecasts switch — remembers the last page on each side */}
       <div className="px-3 py-2 border-t border-white/15 flex-shrink-0" style={{ fontFamily: 'var(--font-body)' }}>
         <div className="flex rounded bg-[#002D79]/60 p-0.5" role="tablist" aria-label="Product">
           {[
-            { label: 'Books', href: '/dashboard', active: !inForecasts },
-            { label: 'Forecasts', href: '/forecasts', active: inForecasts },
+            { label: 'Books', href: inForecasts ? lastPaths.books : '/dashboard', active: !inForecasts },
+            { label: 'Forecasts', href: inForecasts ? '/forecasts' : lastPaths.forecasts, active: inForecasts },
           ].map((t) => (
             <Link
               key={t.label}
