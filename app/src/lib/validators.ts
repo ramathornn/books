@@ -340,7 +340,7 @@ export const forecastFlowDaySchema = z.object({
   rowId: z.string(),
   monthIndex: z.number().int().min(0).max(239),
   day: z.union([z.number().int().min(1).max(31), z.literal('last')]),
-  scope: z.enum(['month', 'onward']),
+  scope: z.enum(['month', 'onward', 'row']),
 })
 
 export const forecastAssetSchema = z.object({

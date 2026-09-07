@@ -18,6 +18,17 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   const row = await prisma.forecastRow.findFirst({ where: { id: d.rowId, scenarioId: id }, select: { id: true } })
   if (!row) return notFound('Row')
   const day = d.day === 'last' ? null : d.day
+
+  // 'row' = one day for every month: wipe the row's schedule and overrides, then
+  // lay down a single schedule point at month 0 so every month resolves to it.
+  if (d.scope === 'row') {
+    await prisma.$transaction([
+      prisma.forecastFlowDay.deleteMany({ where: { rowId: d.rowId } }),
+      prisma.forecastFlowDay.create({ data: { rowId: d.rowId, monthIndex: 0, kind: 'schedule', day } }),
+    ])
+    return Response.json({ ok: true })
+  }
+
   const kind = d.scope === 'onward' ? 'schedule' : 'override'
   await prisma.$transaction([
     ...(kind === 'schedule'

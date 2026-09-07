@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
 import { SCENARIO_COOKIE, type Asset, type CellValue, type DebtSettings, type FlowDayValue, type ForecastData, type Rates, type ScenarioSummary, type Section } from '@/lib/forecasts/types'
 import { computeForecast, type Computed } from '@/lib/forecasts/computed'
-import { setFlowDay as setFlowDayPure, clearFlowDay as clearFlowDayPure } from '@/lib/forecasts/flowDays'
+import { setFlowDay as setFlowDayPure, clearFlowDay as clearFlowDayPure, setRowFlowDay as setRowFlowDayPure } from '@/lib/forecasts/flowDays'
 import { buildMonths, parseMonthLabel } from '@/lib/forecasts/months'
 
 const API_SECTION: Record<Section, 'income' | 'expense' | 'debt'> = { income: 'income', expenses: 'expense', receivables: 'debt' }
@@ -40,6 +40,7 @@ interface ForecastStore {
   setBankBalance: (monthIndex: number, amount: number, day: number) => void
   clearBankBalance: (monthIndex: number) => void
   setFlowDay: (section: Section, row: string, monthIndex: number, day: FlowDayValue, scope: 'month' | 'onward') => void
+  setRowFlowDay: (section: Section, row: string, day: FlowDayValue) => void
   clearFlowDay: (section: Section, row: string, monthIndex: number) => void
   addAsset: (name: string, value: number, type: Asset['type'], linkedDebt: string | null) => Promise<boolean>
   updateAsset: (name: string, patch: Partial<Asset>) => void
@@ -471,6 +472,16 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     )
   }, [base, mutate])
 
+  /** One day for the whole row — replaces any per-month assignments. */
+  const setRowFlowDay = useCallback((section: Section, row: string, day: FlowDayValue) => {
+    if (linkedGuard(section, row)) return
+    const id = rowId(dataRef.current, section, row)
+    void mutate(
+      (prev) => ({ ...prev, flowDays: setRowFlowDayPure(prev.flowDays, section, row, day) }),
+      async () => { if (id) await api(`${base}/flow-days`, 'PUT', { rowId: id, monthIndex: 0, day, scope: 'row' }) }
+    )
+  }, [base, mutate])
+
   const clearFlowDay = useCallback((section: Section, row: string, monthIndex: number) => {
     const id = rowId(dataRef.current, section, row)
     void mutate(
@@ -605,11 +616,11 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     updateCell, updateCells, setViewRange,
     addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable,
     removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings,
-    setBankBalance, clearBankBalance, setFlowDay, clearFlowDay,
+    setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay,
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
     isLinked, setBooksLinked, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setOwnerPayAccounts, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+  }), [isLinked, setBooksLinked, setOwnerPayAccounts, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

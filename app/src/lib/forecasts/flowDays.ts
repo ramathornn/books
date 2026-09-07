@@ -74,3 +74,20 @@ export function clearFlowDay(flowDays: FlowDays | undefined, section: Section, r
   if (rec.schedule) rec.schedule = rec.schedule.filter((pt) => pt.from !== monthIdx)
   return next
 }
+
+/** Pure updater: one day for the whole row — a single schedule point at month 0, no overrides. */
+export function setRowFlowDay(flowDays: FlowDays | undefined, section: Section, row: string, day: FlowDayValue): FlowDays {
+  const next: FlowDays = JSON.parse(JSON.stringify(flowDays || {}))
+  const sec = (next[section] ||= {})
+  sec[row] = { schedule: [{ from: 0, day }], overrides: {} }
+  return next
+}
+
+/** The row-wide day when the row has exactly one schedule point at month 0 and no overrides. */
+export function rowFlowDay(flowDays: FlowDays | undefined, section: Section, row: string): FlowDayValue | null {
+  const rec = flowDays?.[section]?.[row]
+  if (!rec || Object.keys(rec.overrides || {}).length) return null
+  const sch = rec.schedule || []
+  if (sch.length !== 1 || sch[0].from !== 0) return null
+  return sch[0].day
+}

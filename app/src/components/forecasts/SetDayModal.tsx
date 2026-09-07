@@ -14,19 +14,24 @@ interface Props {
   onSave: (day: FlowDayValue, scope: 'month' | 'onward') => void
   onClear: () => void
   onClose: () => void
+  /** Row mode: one day for every month, so there is no scope to choose. */
+  rowMode?: boolean
 }
 
 /** Pick the day-of-month a cell lands on, for this month only or from here onward. */
-export default function SetDayModal({ open, row, monthLabel, currentDay, hasDay, onSave, onClear, onClose }: Props) {
+export default function SetDayModal({ open, row, monthLabel, currentDay, hasDay, onSave, onClear, onClose, rowMode = false }: Props) {
   // Mounted fresh each time it opens (see EditableTable), so props seed state directly.
   const [day, setDay] = useState<FlowDayValue>(currentDay ?? 'last')
   const [scope, setScope] = useState<'month' | 'onward'>('onward')
-  const dim = daysInMonth(monthLabel ?? null)
+  // Row mode spans every month, so offer the full 1-31 range.
+  const dim = rowMode ? 31 : daysInMonth(monthLabel ?? null)
 
   return (
-    <Modal isOpen={open} onClose={onClose} title={`Set day — ${row ?? ''}`}>
+    <Modal isOpen={open} onClose={onClose} title={`${rowMode ? 'Payment day' : 'Set day'} — ${row ?? ''}`}>
       <p className="mb-3 text-sm text-gray-600">
-        Which day of <span className="font-medium">{monthLabel}</span> does this amount land on? Currently: <span className="font-medium">{dayLabel(currentDay ?? null)}{hasDay ? '' : ' (default)'}</span>.
+        {rowMode
+          ? <>Which day of the month does this payment come out? Applies to every month of this row. Currently: <span className="font-medium">{dayLabel(currentDay ?? null)}{hasDay ? '' : ' (default)'}</span>.</>
+          : <>Which day of <span className="font-medium">{monthLabel}</span> does this amount land on? Currently: <span className="font-medium">{dayLabel(currentDay ?? null)}{hasDay ? '' : ' (default)'}</span>.</>}
       </p>
       <div className="mb-3 grid grid-cols-7 gap-1">
         {Array.from({ length: dim }, (_, i) => i + 1).map((d) => (
@@ -47,7 +52,7 @@ export default function SetDayModal({ open, row, monthLabel, currentDay, hasDay,
           Last day of month
         </button>
       </div>
-      <div className="mb-4 flex gap-2 text-sm">
+      <div className={`mb-4 flex gap-2 text-sm ${rowMode ? 'hidden' : ''}`}>
         {(['onward', 'month'] as const).map((s) => (
           <label key={s} className={`flex flex-1 cursor-pointer items-center gap-2 rounded border px-3 py-2 ${scope === s ? 'border-[#0075DD] bg-[#DEEBFF]' : 'border-gray-200'}`}>
             <input type="radio" name="scope" checked={scope === s} onChange={() => setScope(s)} />

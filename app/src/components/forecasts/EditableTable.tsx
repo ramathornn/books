@@ -8,11 +8,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { CellValue, FlowDayValue, Section } from '@/lib/forecasts/types'
 import { buildSuggestions, getFormulaDisplay, isFormula, replaceCurrentToken, resolveValue, shiftFormulaMonths, type RefSuggestion } from '@/lib/forecasts/formula'
-import { assignedDay, dayLabel, hasAssignedDay } from '@/lib/forecasts/flowDays'
+import { assignedDay, dayLabel, hasAssignedDay, rowFlowDay } from '@/lib/forecasts/flowDays'
 import { fmtMoney } from '@/lib/forecasts/computed'
 import { useForecast } from './ForecastProvider'
 import { FormulaAutocomplete, useFormulaBar, useSuggestionLists } from './FormulaBar'
 import SetDayModal from './SetDayModal'
+import { CalendarIcon, iconBtn } from './ui'
 
 export interface TableRow { key: string; label: string; isHeader?: boolean; currency?: string; linked?: boolean; linkedNote?: string }
 
@@ -169,7 +170,7 @@ interface Props {
 }
 
 export default function EditableTable({ section, columns, rows, totalRow = null, extraRows = [], rowActions = null, hideTotals = false, onReorder = null, computedValues = null, editableComputedKeys = null, enableDayAssignment = false }: Props) {
-  const { data, computed, updateCells, setFlowDay, clearFlowDay, readOnly } = useForecast()
+  const { data, computed, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
   const bar = useFormulaBar()
   const globalSelectMode = !!bar?.selectMode?.picking
   const { from, to } = computed
@@ -180,6 +181,8 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
   // Right-click day assignment
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; key: string; index: number; monthLabel: string; currentDay: FlowDayValue | null; hasDay: boolean } | null>(null)
   const [dayModal, setDayModal] = useState<{ key: string; index: number; monthLabel: string; currentDay: FlowDayValue | null; hasDay: boolean } | null>(null)
+  // Row-level payment day (one day for every month of the row)
+  const [rowDayModal, setRowDayModal] = useState<{ key: string; label: string; currentDay: FlowDayValue | null } | null>(null)
   const flowDays = data.flowDays
 
   const handleCellContextMenu = useCallback((e: React.MouseEvent, sec: Section, key: string, index: number) => {
@@ -327,7 +330,19 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
             const rowTotal = resolvedView.reduce((a, b) => a + b, 0)
             return (
               <tr key={row.key} className={rowCls} onDragOver={(e) => handleDragOver(e, row)} onDrop={handleDrop}>
-                <td className={stickyTd}>{grip}{row.label}{row.linked && <BooksBadge note={row.linkedNote} />}</td>
+                <td className={stickyTd}>
+                  {grip}{row.label}{row.linked && <BooksBadge note={row.linkedNote} />}
+                  {enableDayAssignment && !readOnly && (
+                    <button
+                      type="button"
+                      className={`${iconBtn} ml-1.5 align-middle`}
+                      title={`Payment day: ${dayLabel(rowFlowDay(flowDays, section, row.key))}${rowFlowDay(flowDays, section, row.key) == null ? ' (default)' : ''}`}
+                      onClick={() => setRowDayModal({ key: row.key, label: row.label, currentDay: rowFlowDay(flowDays, section, row.key) })}
+                    >
+                      <CalendarIcon />
+                    </button>
+                  )}
+                </td>
                 {rowActions && <td className="border-b border-gray-100 px-1 whitespace-nowrap">{rowActions(row)}</td>}
                 {viewData.map((val, i) => {
                   const absIdx = from + i
@@ -407,6 +422,20 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
           onSave={(day, scope) => { setFlowDay(section, dayModal.key, dayModal.index, day, scope); setDayModal(null) }}
           onClear={() => clearFlowDay(section, dayModal.key, dayModal.index)}
           onClose={() => setDayModal(null)}
+        />
+      )}
+
+      {rowDayModal && (
+        <SetDayModal
+          open
+          rowMode
+          row={rowDayModal.label}
+          monthLabel={undefined}
+          currentDay={rowDayModal.currentDay}
+          hasDay={rowDayModal.currentDay != null}
+          onSave={(day) => { setRowFlowDay(section, rowDayModal.key, day); setRowDayModal(null) }}
+          onClear={() => setRowFlowDay(section, rowDayModal.key, 'last')}
+          onClose={() => setRowDayModal(null)}
         />
       )}
     </div>
