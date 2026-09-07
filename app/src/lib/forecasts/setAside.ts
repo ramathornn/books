@@ -116,3 +116,41 @@ export function monthlySetAside(monthLabels: string[], expenses: number[]): numb
 
   return out
 }
+
+/**
+ * Flat alternative to {@link monthlySetAside}: one rate for the whole year,
+ * applied evenly to every month.
+ *
+ * The year's spend is annualized to a 12-month run rate first, so a workbook
+ * that starts mid-year is priced at the bracket position the draws will actually
+ * reach — not the artificially low one you get by restarting the brackets at
+ * zero in September. It makes no attempt to reconstruct earlier months; it just
+ * refuses to hand out the early-bracket discount.
+ *
+ * Reserves more than the cumulative method early in a year and is the safer
+ * choice when you are behind.
+ */
+export function flatSetAside(monthLabels: string[], expenses: number[]): number[] {
+  const spendByYear = new Map<number, { total: number; months: number }>()
+  monthLabels.forEach((label, i) => {
+    const p = parseMonthLabel(label)
+    if (!p) return
+    const e = spendByYear.get(p.year) ?? { total: 0, months: 0 }
+    e.total += Math.max(0, expenses[i] ?? 0)
+    e.months += 1
+    spendByYear.set(p.year, e)
+  })
+
+  const rateByYear = new Map<number, number>()
+  for (const [year, { total, months }] of spendByYear) {
+    if (total <= 0 || months <= 0) { rateByYear.set(year, 0); continue }
+    const annualized = (total / months) * 12
+    rateByYear.set(year, setAsideForNet(annualized) / annualized)
+  }
+
+  return monthLabels.map((label, i) => {
+    const p = parseMonthLabel(label)
+    if (!p) return 0
+    return Math.max(0, expenses[i] ?? 0) * (rateByYear.get(p.year) ?? 0)
+  })
+}

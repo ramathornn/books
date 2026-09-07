@@ -38,8 +38,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   try {
     const updated = await prisma.forecastScenario.update({
       where: { id },
-      data: { name: d.name, viewFrom, viewTo, monthCount, booksLinked: d.booksLinked, ownerPayGlAccountIds: d.ownerPayGlAccountIds, salaryMethod: d.salaryMethod },
-      select: { id: true, name: true, viewFrom: true, viewTo: true, monthCount: true, booksLinked: true, ownerPayGlAccountIds: true, salaryMethod: true },
+      data: { name: d.name, viewFrom, viewTo, monthCount, booksLinked: d.booksLinked, ownerPayGlAccountIds: d.ownerPayGlAccountIds, salaryMethod: d.salaryMethod, setAsideMethod: d.setAsideMethod },
+      select: { id: true, name: true, viewFrom: true, viewTo: true, monthCount: true, booksLinked: true, ownerPayGlAccountIds: true, salaryMethod: true, setAsideMethod: true },
     })
     return Response.json(updated)
   } catch (e) {

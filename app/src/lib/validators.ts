@@ -293,6 +293,7 @@ export const forecastScenarioPatchSchema = z.object({
   name: forecastName.optional(),
   booksLinked: z.boolean().optional(),
   salaryMethod: z.enum(['dividend', 'salary']).optional(),
+  setAsideMethod: z.enum(['cumulative', 'flat']).optional(),
   ownerPayGlAccountIds: z.array(z.string()).max(50).optional(),
   viewFrom: z.number().int().min(0).optional(),
   viewTo: z.number().int().min(0).optional(),

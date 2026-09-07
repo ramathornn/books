@@ -92,6 +92,8 @@ export interface ForecastData extends ScenarioSummary {
   booksLinked: boolean
   /** 'dividend' shows the CRA set-aside row on personal Expenses; 'salary' hides it. */
   salaryMethod: 'dividend' | 'salary'
+  /** 'cumulative' = bracket-aware month by month; 'flat' = one annualized rate. */
+  setAsideMethod: 'cumulative' | 'flat'
   ownerPayGlAccountIds: string[]
   /** Rows whose values come from Books; keyed by section then row name. */
   linked: Partial<Record<Section, Record<string, LinkedInfo>>>

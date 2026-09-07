@@ -54,6 +54,7 @@ interface ForecastStore {
   isLinked: (section: Section, key: string) => boolean
   setBooksLinked: (on: boolean) => void
   setSalaryMethod: (method: 'dividend' | 'salary') => void
+  setSetAsideMethod: (method: 'cumulative' | 'flat') => void
   setOwnerPayAccounts: (glAccountIds: string[]) => void
 }
 
@@ -568,6 +569,13 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     )
   }, [base, mutate])
 
+  const setSetAsideMethod = useCallback((method: 'cumulative' | 'flat') => {
+    void mutate(
+      (prev) => ({ ...prev, setAsideMethod: method }),
+      async () => { await api(base, 'PATCH', { setAsideMethod: method }) }
+    )
+  }, [base, mutate])
+
   const setOwnerPayAccounts = useCallback((glAccountIds: string[]) => {
     void mutate(
       (prev) => ({ ...prev, ownerPayGlAccountIds: glAccountIds }),
@@ -627,8 +635,8 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay,
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
-    isLinked, setBooksLinked, setSalaryMethod, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setSalaryMethod, setOwnerPayAccounts, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+    isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts,
+  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

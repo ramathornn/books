@@ -7,7 +7,7 @@ import { AreaChart, CHART_COLORS, DonutChart } from '@/components/forecasts/char
 import { AddButton, Card, CategoryBars, Hero, iconBtn, iconBtnDanger, InlineAdd, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { fmtMoney } from '@/lib/forecasts/computed'
-import { monthlySetAside } from '@/lib/forecasts/setAside'
+import { flatSetAside, monthlySetAside } from '@/lib/forecasts/setAside'
 import { toast } from '@/lib/toast'
 
 export default function ExpensesClient() {
@@ -21,7 +21,11 @@ export default function ExpensesClient() {
   // Dividend owners must reserve the personal tax on the withdrawal that funds
   // this spending — a gross-up, not a slice of it. Salary withholds at source.
   const showSetAside = data.kind === 'personal' && data.salaryMethod === 'dividend'
-  const setAside = useMemo(() => (showSetAside ? monthlySetAside(viewMonths, viewExpenses) : []), [showSetAside, viewMonths, viewExpenses])
+  const flatMethod = data.setAsideMethod === 'flat'
+  const setAside = useMemo(
+    () => (showSetAside ? (flatMethod ? flatSetAside : monthlySetAside)(viewMonths, viewExpenses) : []),
+    [showSetAside, flatMethod, viewMonths, viewExpenses]
+  )
   const rows: TableRow[] = Object.keys(data.expenses).map((k) => ({ key: k, label: k.startsWith('_') ? k.slice(1) : k, isHeader: k.startsWith('_'), linked: !!data.linked.expenses?.[k], linkedNote: data.linked.expenses?.[k]?.note }))
   const confirmIsCat = !!confirmKey?.startsWith('_')
 
@@ -49,7 +53,9 @@ export default function ExpensesClient() {
         preTotalRows={showSetAside ? [{
           label: 'CRA FY set-aside',
           values: setAside,
-          note: 'Personal tax to hold back on the dividend withdrawal that funds this spending. To have $1 left to spend you must withdraw more than $1, so this is the tax on the grossed-up draw — not a flat share of expenses. Accumulates within each calendar year, so it rises through the year and resets in January.',
+          note: flatMethod
+            ? 'Personal tax to hold back on the dividend withdrawal that funds this spending. To have $1 left to spend you must withdraw more than $1, so this is the tax on the grossed-up draw — not a flat share of expenses. Flat mode annualizes your run rate and reserves the same rate every month, so a mid-year start is priced at the brackets the draws will actually reach. Change it in Settings → Salary method.'
+            : 'Personal tax to hold back on the dividend withdrawal that funds this spending. To have $1 left to spend you must withdraw more than $1, so this is the tax on the grossed-up draw — not a flat share of expenses. Auto mode walks the brackets, so it rises through the year and resets in January. Change it in Settings → Salary method.',
         }] : []}
         onReorder={readOnly ? null : (d, t, p) => reorderRow('expenses', d, t, p)}
         rowActions={readOnly ? null : (row) => row.linked ? null : (

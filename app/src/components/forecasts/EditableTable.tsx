@@ -185,6 +185,9 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
   const [dayModal, setDayModal] = useState<{ key: string; index: number; monthLabel: string; currentDay: FlowDayValue | null; hasDay: boolean } | null>(null)
   // Row-level payment day (one day for every month of the row)
   const [rowDayModal, setRowDayModal] = useState<{ key: string; label: string; currentDay: FlowDayValue | null } | null>(null)
+  // Note popover for pre-total rows. Fixed-positioned because the table sits in
+  // an overflow-x-auto wrapper, which clips anything absolutely positioned.
+  const [noteTip, setNoteTip] = useState<{ x: number; y: number; text: string } | null>(null)
   const flowDays = data.flowDays
 
   const handleCellContextMenu = useCallback((e: React.MouseEvent, sec: Section, key: string, index: number) => {
@@ -385,9 +388,20 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
             const sum = r.values.reduce((a, b) => a + b, 0)
             return (
               <tr key={r.label} className="text-gray-700">
-                <td className={`${stickyTd} py-2`} title={r.note}>
+                <td className={`${stickyTd} py-2`}>
                   {r.label}
-                  {r.note && <span className="ml-1.5 cursor-help text-gray-400">ⓘ</span>}
+                  {r.note && (
+                    <span
+                      className="ml-1.5 cursor-help align-middle text-gray-400 hover:text-[#0075DD]"
+                      onMouseEnter={(e) => {
+                        const b = (e.target as HTMLElement).getBoundingClientRect()
+                        setNoteTip({ x: b.right + 8, y: b.top + b.height / 2, text: r.note! })
+                      }}
+                      onMouseLeave={() => setNoteTip(null)}
+                    >
+                      ⓘ
+                    </span>
+                  )}
                 </td>
                 {rowActions && <td className="border-b border-gray-100" />}
                 {r.values.map((v, i) => <td key={i} className={`${numTd} py-2`}>{fmtMoney(v)}</td>)}
@@ -417,6 +431,15 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
           })}
         </tbody>
       </table>
+
+      {noteTip && (
+        <div
+          className="pointer-events-none fixed z-50 w-80 max-w-[80vw] -translate-y-1/2 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-normal leading-snug text-gray-600 shadow-lg"
+          style={{ left: noteTip.x, top: noteTip.y }}
+        >
+          {noteTip.text}
+        </div>
+      )}
 
       {ctxMenu && (
         <div className="fixed z-50 w-56 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={(e) => e.stopPropagation()}>

@@ -11,7 +11,7 @@ import { toast } from '@/lib/toast'
 // AI advisor, data-path, and API-key settings from WealthPilot are intentionally
 // absent: Books owns storage and auth.
 export default function SettingsClient() {
-  const { data, rates, renameScenario, setRateOverride, extendMonths, setBooksLinked, setSalaryMethod, setOwnerPayAccounts, readOnly } = useForecast()
+  const { data, rates, renameScenario, setRateOverride, extendMonths, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, readOnly } = useForecast()
   const [glAccounts, setGlAccounts] = useState<{ id: string; accountNumber: string; accountName: string; accountClass: string }[]>([])
   const [ownerPay, setOwnerPay] = useState<string[]>(data.ownerPayGlAccountIds)
   const [glFilter, setGlFilter] = useState('')
@@ -123,6 +123,31 @@ export default function SettingsClient() {
         <p className="mt-2 text-[12px] text-gray-500">
           How you take money out of the business. <span className="font-medium">Dividend</span> adds a CRA fiscal-year set-aside row to the personal Expenses page — the tax to hold back on the withdrawal that funds your spending. <span className="font-medium">Salary</span> hides it, since payroll withholds at source.
         </p>
+
+        {data.salaryMethod === 'dividend' && (
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <p className="mb-2 text-[13px] font-medium text-gray-800">Set-aside calculation</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'cumulative', label: 'Auto (bracket-aware)' },
+                { value: 'flat', label: 'Flat rate' },
+              ] as const).map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  disabled={readOnly}
+                  onClick={() => { setSetAsideMethod(m.value); toast.success(m.value === 'flat' ? 'Flat rate — reserves evenly' : 'Auto — follows the brackets') }}
+                  className={`rounded border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${data.setAsideMethod === m.value ? 'border-[#0075DD] bg-[#DEEBFF] font-medium text-[#0747A6]' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[12px] text-gray-500">
+              <span className="font-medium">Auto</span> walks the progressive brackets month by month, so the reserve starts low in January and climbs. <span className="font-medium">Flat</span> annualizes your current run rate and reserves the same rate every month — safer when you start mid-year, because it never hands out the early-bracket discount.
+            </p>
+          </div>
+        )}
       </Card>
     </div>
   )

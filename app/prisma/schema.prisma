@@ -1560,6 +1560,10 @@ model ForecastScenario {
   // How the owner is paid. 'dividend' surfaces the CRA fiscal-year set-aside on
   // the personal Expenses page; 'salary' hides it (tax is withheld at source).
   salaryMethod String @default("dividend") @map("salary_method")
+  // How the CRA set-aside is spread across the year. 'cumulative' walks the
+  // progressive brackets month by month; 'flat' annualizes the run rate and
+  // applies one rate evenly (safer when starting mid-year).
+  setAsideMethod String @default("cumulative") @map("set_aside_method")
 
   rows          ForecastRow[]
   categories    ForecastCategory[]
