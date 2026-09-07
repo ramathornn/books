@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import EditableTable, { type TableRow } from '@/components/forecasts/EditableTable'
-import { BarChart, CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
+import { AreaChart, CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
 import { AddButton, Card, CategoryBars, Hero, iconBtn, iconBtnDanger, InlineAdd, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { fmtMoney } from '@/lib/forecasts/computed'
@@ -17,7 +17,6 @@ export default function ExpensesClient() {
   const [confirmKey, setConfirmKey] = useState<string | null>(null)
 
   const sortedCats = categoryTotals.filter((c) => c.total > 0).sort((a, b) => b.total - a.total)
-  const stacked = viewMonths.map((month, i) => { const row: Record<string, number | string> = { month }; categoryTotals.forEach((c) => { row[c.name] = c.viewTotals[i] }); return row })
   const rows: TableRow[] = Object.keys(data.expenses).map((k) => ({ key: k, label: k.startsWith('_') ? k.slice(1) : k, isHeader: k.startsWith('_'), linked: !!data.linked.expenses?.[k], linkedNote: data.linked.expenses?.[k]?.note }))
   const confirmIsCat = !!confirmKey?.startsWith('_')
 
@@ -26,7 +25,7 @@ export default function ExpensesClient() {
       <Hero label="Total expenses" value={fmtMoney(sumExpenses)} negative badge={`Avg ${fmtMoney(Math.round(avgExpenses))}/mo`}
         sub={<>Net savings: <span className={sumNet >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}>{fmtMoney(sumNet)}</span></>} />
 
-      <Card className="mb-6"><BarChart data={stacked} bars={categoryTotals.filter((c) => c.total > 0).map((c, i) => ({ dataKey: c.name, color: CHART_COLORS[i % CHART_COLORS.length] }))} stacked showLegend height={300} /></Card>
+      <Card className="mb-6"><AreaChart data={viewMonths.map((month, i) => ({ month, Expenses: viewExpenses[i] }))} areas={[{ dataKey: 'Expenses', color: CHART_COLORS[4] }]} height={300} /></Card>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-[3fr_2fr]">
         <Card title="Category breakdown"><CategoryBars items={sortedCats} colors={CHART_COLORS} /></Card>
