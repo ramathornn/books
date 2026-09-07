@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import { Card, Hero, MetricGrid } from '@/components/forecasts/ui'
+import TaxTiers from '@/components/forecasts/TaxTiers'
 import { fmtMoney } from '@/lib/forecasts/computed'
 
 interface Projection {
@@ -20,6 +21,7 @@ interface Projection {
   effectiveRate: number
   monthlySetAside: number
   breakdown: { label: string; amount: number; detail?: string }[]
+  tiers: { jurisdiction: string; rate: number; from: number; to: number; amount: number; tax: number }[]
   notes: string[]
 }
 
@@ -68,6 +70,10 @@ export default function TaxesClient() {
         { label: 'Effective rate', value: `${proj.effectiveRate.toFixed(1)}%` },
         { label: 'Set aside monthly', value: fmtMoney(proj.monthlySetAside) },
       ]} />
+
+      <Card title="Tax by bracket" className="mb-4">
+        <TaxTiers tiers={proj.tiers} />
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <Card title="How it adds up">

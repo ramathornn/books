@@ -1557,6 +1557,9 @@ model ForecastScenario {
   // Personal scenario: GL accounts whose posted activity is owner compensation
   // (salary, dividends, shareholder draws); feeds the "From Business" income row.
   ownerPayGlAccountIds String[] @default([]) @map("owner_pay_gl_account_ids")
+  // How the owner is paid. 'dividend' surfaces the CRA fiscal-year set-aside on
+  // the personal Expenses page; 'salary' hides it (tax is withheld at source).
+  salaryMethod String @default("dividend") @map("salary_method")
 
   rows          ForecastRow[]
   categories    ForecastCategory[]

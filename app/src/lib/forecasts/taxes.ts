@@ -50,6 +50,8 @@ export interface TaxProjection {
   effectiveRate: number
   monthlySetAside: number
   breakdown: { label: string; amount: number; detail?: string }[]
+  /** Per-bracket slices, for the tier chart: how much income fell in each band and the tax on it. */
+  tiers: { jurisdiction: string; rate: number; from: number; to: number; amount: number; tax: number }[]
   notes: string[]
 }
 
@@ -90,6 +92,10 @@ export function projectPersonalTax(data: ForecastData, c: Computed, year: number
     totalTax: r0(total),
     effectiveRate: income > 0 ? Math.round((total / income) * 1000) / 10 : 0,
     monthlySetAside: r0(total / 12),
+    tiers: [
+      ...fed.lines.map((l) => ({ jurisdiction: 'Federal', rate: l.rate, from: l.from, to: l.to, amount: l.amount, tax: l.tax })),
+      ...prov.lines.map((l) => ({ jurisdiction: table.province, rate: l.rate, from: l.from, to: l.to, amount: l.amount, tax: l.tax })),
+    ],
     breakdown: [
       ...fed.lines.map((l) => ({ label: `Federal ${(l.rate * 100).toFixed(1)}%`, amount: l.tax, detail: `on ${l.amount.toLocaleString()} (${l.from.toLocaleString()} to ${l.to === Infinity ? 'above' : l.to.toLocaleString()})` })),
       { label: 'Federal basic personal amount', amount: -r0(Math.min(fedCredit, fed.tax)) },
@@ -136,6 +142,14 @@ export function projectCorporateTax(data: ForecastData, c: Computed, fiscalYear:
     totalTax: r0(total),
     effectiveRate: net > 0 ? Math.round((total / net) * 1000) / 10 : 0,
     monthlySetAside: r0(total / 12),
+    // Corporate "tiers" are the small-business band up to the limit and the
+    // general band above it, in each jurisdiction.
+    tiers: [
+      { jurisdiction: 'Federal', rate: table.federal.netSmallBusinessRate, from: 0, to: limit, amount: r0(sbd), tax: r0(fedSbd) },
+      ...(general > 0 ? [{ jurisdiction: 'Federal', rate: table.federal.netGeneralRate, from: limit, to: Infinity, amount: r0(general), tax: r0(fedGen) }] : []),
+      { jurisdiction: table.province, rate: table.alberta.smallBusinessRate, from: 0, to: limit, amount: r0(sbd), tax: r0(abSbd) },
+      ...(general > 0 ? [{ jurisdiction: table.province, rate: table.alberta.generalRate, from: limit, to: Infinity, amount: r0(general), tax: r0(abGen) }] : []),
+    ],
     breakdown: [
       { label: `Federal small business ${(table.federal.netSmallBusinessRate * 100).toFixed(1)}%`, amount: r0(fedSbd), detail: `on ${r0(sbd).toLocaleString()} (limit ${limit.toLocaleString()})` },
       ...(general > 0 ? [{ label: `Federal general ${(table.federal.netGeneralRate * 100).toFixed(1)}%`, amount: r0(fedGen), detail: `on ${r0(general).toLocaleString()} above the limit` }] : []),

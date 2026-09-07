@@ -11,7 +11,7 @@ import { toast } from '@/lib/toast'
 // AI advisor, data-path, and API-key settings from WealthPilot are intentionally
 // absent: Books owns storage and auth.
 export default function SettingsClient() {
-  const { data, rates, renameScenario, setRateOverride, extendMonths, setBooksLinked, setOwnerPayAccounts, readOnly } = useForecast()
+  const { data, rates, renameScenario, setRateOverride, extendMonths, setBooksLinked, setSalaryMethod, setOwnerPayAccounts, readOnly } = useForecast()
   const [glAccounts, setGlAccounts] = useState<{ id: string; accountNumber: string; accountName: string; accountClass: string }[]>([])
   const [ownerPay, setOwnerPay] = useState<string[]>(data.ownerPayGlAccountIds)
   const [glFilter, setGlFilter] = useState('')
@@ -104,6 +104,25 @@ export default function SettingsClient() {
           <button type="button" className={btn} onClick={exportJson}>Download JSON</button>
         </div>
         <p className="mt-2 text-[12px] text-gray-500">CSV resolves formulas and converts income to CAD. JSON is the raw scenario, formulas included.</p>
+      </Card>
+
+      <Card title="Salary method">
+        <div className="flex gap-2">
+          {(['dividend', 'salary'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              disabled={readOnly}
+              onClick={() => { setSalaryMethod(m); toast.success(m === 'dividend' ? 'Paying yourself by dividend' : 'Paying yourself by salary') }}
+              className={`rounded border px-3 py-1.5 text-sm capitalize disabled:cursor-not-allowed disabled:opacity-50 ${data.salaryMethod === m ? 'border-[#0075DD] bg-[#DEEBFF] font-medium text-[#0747A6]' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[12px] text-gray-500">
+          How you take money out of the business. <span className="font-medium">Dividend</span> adds a CRA fiscal-year set-aside row to the personal Expenses page — the tax to hold back on the withdrawal that funds your spending. <span className="font-medium">Salary</span> hides it, since payroll withholds at source.
+        </p>
       </Card>
     </div>
   )

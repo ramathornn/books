@@ -79,6 +79,8 @@ export interface BookEvent {
 
 export interface ForecastData extends ScenarioSummary {
   booksLinked: boolean
+  /** 'dividend' shows the CRA set-aside row on personal Expenses; 'salary' hides it. */
+  salaryMethod: 'dividend' | 'salary'
   ownerPayGlAccountIds: string[]
   /** Rows whose values come from Books; keyed by section then row name. */
   linked: Partial<Record<Section, Record<string, LinkedInfo>>>

@@ -160,6 +160,8 @@ interface Props {
   rows: TableRow[]
   totalRow?: { label: string; values: number[] } | null
   extraRows?: { label: string; values: number[] }[]
+  /** Rows rendered immediately above the total row (e.g. the CRA set-aside). */
+  preTotalRows?: { label: string; values: number[]; note?: string }[]
   rowActions?: ((row: TableRow) => React.ReactNode) | null
   hideTotals?: boolean
   onReorder?: ((dragKey: string, targetKey: string, position: 'before' | 'after') => void) | null
@@ -169,7 +171,7 @@ interface Props {
   enableDayAssignment?: boolean
 }
 
-export default function EditableTable({ section, columns, rows, totalRow = null, extraRows = [], rowActions = null, hideTotals = false, onReorder = null, computedValues = null, editableComputedKeys = null, enableDayAssignment = false }: Props) {
+export default function EditableTable({ section, columns, rows, totalRow = null, extraRows = [], preTotalRows = [], rowActions = null, hideTotals = false, onReorder = null, computedValues = null, editableComputedKeys = null, enableDayAssignment = false }: Props) {
   const { data, computed, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
   const bar = useFormulaBar()
   const globalSelectMode = !!bar?.selectMode?.picking
@@ -375,6 +377,21 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
                   )
                 })}
                 {!hideTotals && <td className={`${numTd} font-semibold`}>{fmtMoney(rowTotal)}</td>}
+              </tr>
+            )
+          })}
+
+          {preTotalRows.map((r) => {
+            const sum = r.values.reduce((a, b) => a + b, 0)
+            return (
+              <tr key={r.label} className="text-gray-700">
+                <td className={`${stickyTd} py-2`} title={r.note}>
+                  {r.label}
+                  {r.note && <span className="ml-1.5 cursor-help text-gray-400">ⓘ</span>}
+                </td>
+                {rowActions && <td className="border-b border-gray-100" />}
+                {r.values.map((v, i) => <td key={i} className={`${numTd} py-2`}>{fmtMoney(v)}</td>)}
+                {!hideTotals && <td className={`${numTd} py-2 font-semibold`}>{fmtMoney(sum)}</td>}
               </tr>
             )
           })}

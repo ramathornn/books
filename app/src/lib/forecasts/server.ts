@@ -210,6 +210,7 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
 
   return {
     booksLinked: s.booksLinked,
+    salaryMethod: s.salaryMethod === 'salary' ? 'salary' : 'dividend',
     ownerPayGlAccountIds: s.ownerPayGlAccountIds,
     linked,
     linkedOverride,

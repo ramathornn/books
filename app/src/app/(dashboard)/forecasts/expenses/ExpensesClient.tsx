@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import EditableTable, { type TableRow } from '@/components/forecasts/EditableTable'
 import { AreaChart, CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
 import { AddButton, Card, CategoryBars, Hero, iconBtn, iconBtnDanger, InlineAdd, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { fmtMoney } from '@/lib/forecasts/computed'
+import { monthlySetAside } from '@/lib/forecasts/setAside'
 import { toast } from '@/lib/toast'
 
 export default function ExpensesClient() {
@@ -17,6 +18,10 @@ export default function ExpensesClient() {
   const [confirmKey, setConfirmKey] = useState<string | null>(null)
 
   const sortedCats = categoryTotals.filter((c) => c.total > 0).sort((a, b) => b.total - a.total)
+  // Dividend owners must reserve the personal tax on the withdrawal that funds
+  // this spending — a gross-up, not a slice of it. Salary withholds at source.
+  const showSetAside = data.kind === 'personal' && data.salaryMethod === 'dividend'
+  const setAside = useMemo(() => (showSetAside ? monthlySetAside(viewMonths, viewExpenses) : []), [showSetAside, viewMonths, viewExpenses])
   const rows: TableRow[] = Object.keys(data.expenses).map((k) => ({ key: k, label: k.startsWith('_') ? k.slice(1) : k, isHeader: k.startsWith('_'), linked: !!data.linked.expenses?.[k], linkedNote: data.linked.expenses?.[k]?.note }))
   const confirmIsCat = !!confirmKey?.startsWith('_')
 
@@ -41,6 +46,11 @@ export default function ExpensesClient() {
 
       <EditableTable section="expenses" columns={viewMonths} rows={rows} enableDayAssignment
         totalRow={{ label: 'Total expenses', values: viewExpenses }}
+        preTotalRows={showSetAside ? [{
+          label: 'CRA FY set-aside',
+          values: setAside,
+          note: 'Personal tax to hold back on the dividend withdrawal that funds this spending. To have $1 left to spend you must withdraw more than $1, so this is the tax on the grossed-up draw — not a flat share of expenses. Accumulates within each calendar year, so it rises through the year and resets in January.',
+        }] : []}
         onReorder={readOnly ? null : (d, t, p) => reorderRow('expenses', d, t, p)}
         rowActions={readOnly ? null : (row) => row.linked ? null : (
           <span className="inline-flex items-center gap-0.5">
