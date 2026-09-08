@@ -9,54 +9,54 @@ datasource db {
 }
 
 model CompanySettings {
-  id                  String   @id @default("singleton")
-  name                String   @default("Your Company")
-  legalName           String   @default("Your Company Inc.") @map("legal_name")
-  logoInitials        String   @default("YC") @map("logo_initials")
-  addressLine1        String   @default("") @map("address_line_1")
-  addressLine2        String   @default("") @map("address_line_2")
-  city                String   @default("")
-  province            String   @default("")
-  postalCode          String   @default("") @map("postal_code")
-  country             String   @default("")
-  phone               String   @default("")
-  email               String   @default("")
-  website             String   @default("")
-  defaultCurrency     String   @default("CAD") @map("default_currency")
-  defaultPaymentTerms String   @default("net30") @map("default_payment_terms")
+  id                  String @id @default("singleton")
+  name                String @default("Your Company")
+  legalName           String @default("Your Company Inc.") @map("legal_name")
+  logoInitials        String @default("YC") @map("logo_initials")
+  addressLine1        String @default("") @map("address_line_1")
+  addressLine2        String @default("") @map("address_line_2")
+  city                String @default("")
+  province            String @default("")
+  postalCode          String @default("") @map("postal_code")
+  country             String @default("")
+  phone               String @default("")
+  email               String @default("")
+  website             String @default("")
+  defaultCurrency     String @default("CAD") @map("default_currency")
+  defaultPaymentTerms String @default("net30") @map("default_payment_terms")
 
   defaultSalesAccountId      String? @map("default_sales_account_id")
   defaultGstPayableAccountId String? @map("default_gst_payable_account_id")
   realizedFxAccountId        String? @map("realized_fx_account_id")
 
   // Wave 3 — tax filing identity + auto-pull account wiring
-  businessNumber                 String  @default("") @map("business_number")
-  rzAccountInfoReturns           String  @default("") @map("rz_account_info_returns")
-  craTransmitterNumber           String  @default("") @map("cra_transmitter_number")
-  gstNetfileAccessCode           String  @default("") @map("gst_netfile_access_code")
-  gstFilingFrequency             String  @default("quarterly") @map("gst_filing_frequency")
-  fiscalYearEndMonth             Int     @default(12) @map("fiscal_year_end_month")
-  fiscalYearEndDay               Int     @default(31) @map("fiscal_year_end_day")
-  dividendsDeclaredAccountId     String? @map("dividends_declared_account_id")
-  subcontractorExpenseAccountId  String? @map("subcontractor_expense_account_id")
+  businessNumber                String  @default("") @map("business_number")
+  rzAccountInfoReturns          String  @default("") @map("rz_account_info_returns")
+  craTransmitterNumber          String  @default("") @map("cra_transmitter_number")
+  gstNetfileAccessCode          String  @default("") @map("gst_netfile_access_code")
+  gstFilingFrequency            String  @default("quarterly") @map("gst_filing_frequency")
+  fiscalYearEndMonth            Int     @default(12) @map("fiscal_year_end_month")
+  fiscalYearEndDay              Int     @default(31) @map("fiscal_year_end_day")
+  dividendsDeclaredAccountId    String? @map("dividends_declared_account_id")
+  subcontractorExpenseAccountId String? @map("subcontractor_expense_account_id")
   // GL account whose expense is non-deductible (fines/penalties/interest on tax,
   // ITA 18(1)(t)/67.5/67.6) — fully added back on T2 Schedule 1. Null ⇒ buildT2
   // falls back to account number 6660.
-  nonDeductibleExpenseAccountId  String? @map("non_deductible_expense_account_id")
-  defaultItcReceivableAccountId  String? @map("default_itc_receivable_account_id")
-  sinEncryptionKeyVersion        Int     @default(1) @map("sin_encryption_key_version")
+  nonDeductibleExpenseAccountId String? @map("non_deductible_expense_account_id")
+  defaultItcReceivableAccountId String? @map("default_itc_receivable_account_id")
+  sinEncryptionKeyVersion       Int     @default(1) @map("sin_encryption_key_version")
 
   // Wave 4 — T2 corporate-return identity (additive, defaulted-empty).
   // Alberta Corporate Account Number (CAN): TRA-issued, 10 numeric digits. The
   // AT1 verify gate blocks prepare when this is empty (no real value seeded).
-  albertaCorporateAccountNumber  String  @default("") @map("alberta_corporate_account_number")
+  albertaCorporateAccountNumber String @default("") @map("alberta_corporate_account_number")
   // Federal T2 program account = the 9-digit BN above + a corporate-income
   // program suffix (RC0001 form: 2 letters + 4 digits). Defaults to BN+RC0001,
   // confirmed once by the user. Stored as the FULL 15-char account string.
-  t2ProgramAccount               String  @default("") @map("t2_program_account")
+  t2ProgramAccount              String @default("") @map("t2_program_account")
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("company_settings")
 }
@@ -176,23 +176,23 @@ model Invoice {
   onlinePaymentsEnabled Boolean           @default(false) @map("online_payments_enabled")
   allowPartialPayments  Boolean           @default(false) @map("allow_partial_payments")
 
-  journalEntryId     String?       @unique @map("journal_entry_id")
-  journalEntry       JournalEntry? @relation("InvoiceAccrualJE", fields: [journalEntryId], references: [id])
-  voidJournalEntryId String?       @map("void_journal_entry_id")
-  voidedAt           DateTime?     @map("voided_at")
+  journalEntryId         String?       @unique @map("journal_entry_id")
+  journalEntry           JournalEntry? @relation("InvoiceAccrualJE", fields: [journalEntryId], references: [id])
+  voidJournalEntryId     String?       @map("void_journal_entry_id")
+  voidedAt               DateTime?     @map("voided_at")
   // Bad-debt write-off: status may become 'bad_debt'; records the AR write-off JE.
-  writtenOffAt         DateTime? @map("written_off_at")
-  writeOffJournalEntryId String? @map("write_off_journal_entry_id")
-  fxRate             Decimal?      @map("fx_rate") @db.Decimal(18, 8)
-  fxRateSource       String        @default("") @map("fx_rate_source")
-  fxRateDate         DateTime?     @map("fx_rate_date")
-  cadTotal           Decimal?      @map("cad_total") @db.Decimal(12, 2)
-  cadSubtotal        Decimal?      @map("cad_subtotal") @db.Decimal(12, 2)
-  cadTaxTotal        Decimal?      @map("cad_tax_total") @db.Decimal(12, 2)
-  cadReliefToDate    Decimal       @default(0) @map("cad_relief_to_date") @db.Decimal(12, 2)
+  writtenOffAt           DateTime?     @map("written_off_at")
+  writeOffJournalEntryId String?       @map("write_off_journal_entry_id")
+  fxRate                 Decimal?      @map("fx_rate") @db.Decimal(18, 8)
+  fxRateSource           String        @default("") @map("fx_rate_source")
+  fxRateDate             DateTime?     @map("fx_rate_date")
+  cadTotal               Decimal?      @map("cad_total") @db.Decimal(12, 2)
+  cadSubtotal            Decimal?      @map("cad_subtotal") @db.Decimal(12, 2)
+  cadTaxTotal            Decimal?      @map("cad_tax_total") @db.Decimal(12, 2)
+  cadReliefToDate        Decimal       @default(0) @map("cad_relief_to_date") @db.Decimal(12, 2)
 
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([invoiceNumber])
   @@index([clientId])
@@ -294,14 +294,14 @@ model Payment {
   clientId              String   @map("client_id")
   client                Client   @relation(fields: [clientId], references: [id])
 
-  cadAmount        Decimal?  @map("cad_amount") @db.Decimal(12, 2)
-  cadArRelief      Decimal?  @map("cad_ar_relief") @db.Decimal(12, 2)
-  fxRate           Decimal?  @map("fx_rate") @db.Decimal(18, 8)
-  fxRateDate       DateTime? @map("fx_rate_date")
-  journalEntryId   String?   @unique @map("journal_entry_id")
+  cadAmount      Decimal?  @map("cad_amount") @db.Decimal(12, 2)
+  cadArRelief    Decimal?  @map("cad_ar_relief") @db.Decimal(12, 2)
+  fxRate         Decimal?  @map("fx_rate") @db.Decimal(18, 8)
+  fxRateDate     DateTime? @map("fx_rate_date")
+  journalEntryId String?   @unique @map("journal_entry_id")
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([invoiceId])
   @@index([clientId])
@@ -455,7 +455,7 @@ model Expense {
   projectId          String?         @map("project_id")
   project            Project?        @relation(fields: [projectId], references: [id])
   taxCodeId          String?         @map("tax_code_id")
-  storedFiles        StoredFile[]    // receipt files filed into the Files manager
+  storedFiles        StoredFile[] // receipt files filed into the Files manager
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
@@ -595,35 +595,35 @@ model TaxCode {
 }
 
 model JournalEntry {
-  id          String             @id @default(uuid())
-  entryNumber String             @unique @map("entry_number")
-  entryDate   DateTime           @map("entry_date")
-  description String             @default("")
-  memo        String             @default("")
-  status      String             @default("draft") // draft | posted | void
-  totalDebit  Decimal            @default(0) @map("total_debit") @db.Decimal(15, 2)
-  totalCredit Decimal            @default(0) @map("total_credit") @db.Decimal(15, 2)
-  postedAt    DateTime?          @map("posted_at")
+  id          String    @id @default(uuid())
+  entryNumber String    @unique @map("entry_number")
+  entryDate   DateTime  @map("entry_date")
+  description String    @default("")
+  memo        String    @default("")
+  status      String    @default("draft") // draft | posted | void
+  totalDebit  Decimal   @default(0) @map("total_debit") @db.Decimal(15, 2)
+  totalCredit Decimal   @default(0) @map("total_credit") @db.Decimal(15, 2)
+  postedAt    DateTime? @map("posted_at")
 
-  kind           String        @default("standard") @map("kind")
+  kind                String        @default("standard") @map("kind")
   // Client-supplied dedupe key (e.g. declare-dividend). Unique, so a retried
   // request can never book the same economic event twice.
-  idempotencyKey String?       @unique @map("idempotency_key")
+  idempotencyKey      String?       @unique @map("idempotency_key")
   // For kind=='dividend' only: tags the declaration as 'eligible' | 'nonEligible' so
   // T5 generation routes the actual amount to the correct boxes (eligible -> 24/25/26;
   // non-eligible -> 10/11/12) and the T1 pull can derive the 12000/12010/40425 split.
   // Null on every non-dividend entry.
-  dividendEligibility String?    @map("dividend_eligibility")
-  reversesId     String?       @unique @map("reverses_id")
-  reverses       JournalEntry? @relation("JEReversal", fields: [reversesId], references: [id])
-  reversal       JournalEntry? @relation("JEReversal")
-  reversedAt     DateTime?     @map("reversed_at")
-  reversedReason String?       @map("reversed_reason")
-  invoiceAccrual Invoice?      @relation("InvoiceAccrualJE")
+  dividendEligibility String?       @map("dividend_eligibility")
+  reversesId          String?       @unique @map("reverses_id")
+  reverses            JournalEntry? @relation("JEReversal", fields: [reversesId], references: [id])
+  reversal            JournalEntry? @relation("JEReversal")
+  reversedAt          DateTime?     @map("reversed_at")
+  reversedReason      String?       @map("reversed_reason")
+  invoiceAccrual      Invoice?      @relation("InvoiceAccrualJE")
 
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  lines       JournalEntryLine[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  lines     JournalEntryLine[]
 
   @@index([entryDate])
   @@index([status])
@@ -665,34 +665,34 @@ model FxRate {
 }
 
 model BankAccount {
-  id                  String            @id @default(uuid())
-  glAccountId         String            @unique @map("gl_account_id")
-  glAccount           GLAccount         @relation(fields: [glAccountId], references: [id])
-  bankName            String            @map("bank_name")
-  accountNumberMasked String            @default("") @map("account_number_masked")
-  accountHolder       String            @default("") @map("account_holder")
-  accountType         String            @default("checking") @map("account_type") // checking | savings | credit_card | cash | wallet
-  statementClosingDay Int?              @map("statement_closing_day") // day of month statement closes
-  isConnected         Boolean           @default(false) @map("is_connected")
-  lastSyncAt          DateTime?         @map("last_sync_at")
-  lastReconciledAt    DateTime?         @map("last_reconciled_at")
-  reconciledBalance   Decimal           @default(0) @map("reconciled_balance") @db.Decimal(15, 2)
-  isArchived          Boolean           @default(false) @map("is_archived")
-  sortOrder           Int               @default(0) @map("sort_order")
+  id                    String            @id @default(uuid())
+  glAccountId           String            @unique @map("gl_account_id")
+  glAccount             GLAccount         @relation(fields: [glAccountId], references: [id])
+  bankName              String            @map("bank_name")
+  accountNumberMasked   String            @default("") @map("account_number_masked")
+  accountHolder         String            @default("") @map("account_holder")
+  accountType           String            @default("checking") @map("account_type") // checking | savings | credit_card | cash | wallet
+  statementClosingDay   Int?              @map("statement_closing_day") // day of month statement closes
+  isConnected           Boolean           @default(false) @map("is_connected")
+  lastSyncAt            DateTime?         @map("last_sync_at")
+  lastReconciledAt      DateTime?         @map("last_reconciled_at")
+  reconciledBalance     Decimal           @default(0) @map("reconciled_balance") @db.Decimal(15, 2)
+  isArchived            Boolean           @default(false) @map("is_archived")
+  sortOrder             Int               @default(0) @map("sort_order")
   // Plaid link: which Plaid Item (institution connection) + Plaid account this
   // maps to, and the earliest date to pull transactions from.
-  plaidItemId         String?           @map("plaid_item_id")
-  plaidItem           PlaidItem?        @relation(fields: [plaidItemId], references: [id])
-  plaidAccountId      String?           @map("plaid_account_id")
-  plaidSyncFrom       DateTime?         @map("plaid_sync_from")
+  plaidItemId           String?           @map("plaid_item_id")
+  plaidItem             PlaidItem?        @relation(fields: [plaidItemId], references: [id])
+  plaidAccountId        String?           @map("plaid_account_id")
+  plaidSyncFrom         DateTime?         @map("plaid_sync_from")
   // Live balance pulled from Plaid on each sync (the bank's reported balance,
   // to reconcile against the book balance / GLAccount.currentBalance).
-  plaidCurrentBalance   Decimal?        @map("plaid_current_balance") @db.Decimal(15, 2)
-  plaidAvailableBalance Decimal?        @map("plaid_available_balance") @db.Decimal(15, 2)
-  plaidBalanceAt        DateTime?       @map("plaid_balance_at")
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  transactions        BankTransaction[]
+  plaidCurrentBalance   Decimal?          @map("plaid_current_balance") @db.Decimal(15, 2)
+  plaidAvailableBalance Decimal?          @map("plaid_available_balance") @db.Decimal(15, 2)
+  plaidBalanceAt        DateTime?         @map("plaid_balance_at")
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  transactions          BankTransaction[]
 
   @@index([plaidItemId])
   @@map("bank_accounts")
@@ -706,7 +706,7 @@ model PlaidItem {
   institutionId   String        @default("") @map("institution_id")
   institutionName String        @default("") @map("institution_name")
   accessTokenEnc  String        @map("access_token_enc") // AES-256-GCM, see lib/crypto
-  cursor          String?       // /transactions/sync cursor
+  cursor          String? // /transactions/sync cursor
   status          String        @default("active") // active | login_required | error | disconnected
   lastError       String?       @map("last_error")
   lastSyncAt      DateTime?     @map("last_sync_at")
@@ -910,12 +910,12 @@ model ReconciliationLock {
 
 // Records a year-end close run: rolls net income into retained earnings.
 model FiscalYearClose {
-  id                       String   @id @default(uuid())
-  fiscalYear               Int      @unique @map("fiscal_year")
-  closedAt                 DateTime @default(now()) @map("closed_at")
-  closingJournalEntryId    String?  @map("closing_journal_entry_id")
-  retainedEarningsAccountId String? @map("retained_earnings_account_id")
-  netIncome                Decimal  @default(0) @map("net_income") @db.Decimal(15, 2)
+  id                        String   @id @default(uuid())
+  fiscalYear                Int      @unique @map("fiscal_year")
+  closedAt                  DateTime @default(now()) @map("closed_at")
+  closingJournalEntryId     String?  @map("closing_journal_entry_id")
+  retainedEarningsAccountId String?  @map("retained_earnings_account_id")
+  netIncome                 Decimal  @default(0) @map("net_income") @db.Decimal(15, 2)
 
   @@map("fiscal_year_closes")
 }
@@ -1119,32 +1119,32 @@ model StoredFile {
 // ============================================================================
 
 model TaxParty {
-  id             String   @id @default(uuid())
+  id             String     @id @default(uuid())
   kind           String // individual | business
-  firstName      String   @default("") @map("first_name")
-  lastName       String   @default("") @map("last_name")
-  businessName   String   @default("") @map("business_name")
-  sinCipher      String?   @map("sin_cipher") // AES-GCM blob (iv:tag:ct), NEVER plaintext
-  sinLast3       String?   @map("sin_last3") // for display masking only
-  dateOfBirth    DateTime? @map("date_of_birth") @db.Date // nullable; drives T1 age amount + is a WARNING (not hard block) when age amount is $0
-  businessNumber String?   @map("business_number")
-  addressLine1   String   @default("") @map("address_line_1")
-  addressLine2   String   @default("") @map("address_line_2")
-  city           String   @default("")
-  province       String   @default("")
-  postalCode     String   @default("") @map("postal_code")
-  country        String   @default("CA")
-  email          String   @default("")
-  phone          String   @default("")
-  clientId       String?  @map("client_id")
-  client         Client?  @relation(fields: [clientId], references: [id])
-  vendorId       String?  @map("vendor_id")
-  vendor         Vendor?  @relation(fields: [vendorId], references: [id])
-  isArchived     Boolean  @default(false) @map("is_archived") // blocked if non-draft slips exist
+  firstName      String     @default("") @map("first_name")
+  lastName       String     @default("") @map("last_name")
+  businessName   String     @default("") @map("business_name")
+  sinCipher      String?    @map("sin_cipher") // AES-GCM blob (iv:tag:ct), NEVER plaintext
+  sinLast3       String?    @map("sin_last3") // for display masking only
+  dateOfBirth    DateTime?  @map("date_of_birth") @db.Date // nullable; drives T1 age amount + is a WARNING (not hard block) when age amount is $0
+  businessNumber String?    @map("business_number")
+  addressLine1   String     @default("") @map("address_line_1")
+  addressLine2   String     @default("") @map("address_line_2")
+  city           String     @default("")
+  province       String     @default("")
+  postalCode     String     @default("") @map("postal_code")
+  country        String     @default("CA")
+  email          String     @default("")
+  phone          String     @default("")
+  clientId       String?    @map("client_id")
+  client         Client?    @relation(fields: [clientId], references: [id])
+  vendorId       String?    @map("vendor_id")
+  vendor         Vendor?    @relation(fields: [vendorId], references: [id])
+  isArchived     Boolean    @default(false) @map("is_archived") // blocked if non-draft slips exist
   slips          TaxSlip[]
   t1Returns      T1Return[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@index([vendorId])
   @@index([clientId])
@@ -1222,21 +1222,21 @@ model TaxSlipSummary {
 }
 
 model CcaClass {
-  id                         String   @id @default(uuid())
-  classNumber                String   @unique @map("class_number") // "8","10","50","10.1"
+  id                         String             @id @default(uuid())
+  classNumber                String             @unique @map("class_number") // "8","10","50","10.1"
   description                String
-  rate                       Decimal  @db.Decimal(6, 4)
-  halfYearRuleApplies        Boolean  @default(true) @map("half_year_rule_applies")
-  accIiEligible              Boolean  @default(false) @map("acc_ii_eligible")
-  immediateExpensingEligible Boolean  @default(false) @map("immediate_expensing_eligible")
-  expenseAccountId           String?  @map("expense_account_id")
-  accumDepAccountId          String?  @map("accum_dep_account_id")
-  assetAccountId             String?  @map("asset_account_id")
-  isArchived                 Boolean  @default(false) @map("is_archived")
+  rate                       Decimal            @db.Decimal(6, 4)
+  halfYearRuleApplies        Boolean            @default(true) @map("half_year_rule_applies")
+  accIiEligible              Boolean            @default(false) @map("acc_ii_eligible")
+  immediateExpensingEligible Boolean            @default(false) @map("immediate_expensing_eligible")
+  expenseAccountId           String?            @map("expense_account_id")
+  accumDepAccountId          String?            @map("accum_dep_account_id")
+  assetAccountId             String?            @map("asset_account_id")
+  isArchived                 Boolean            @default(false) @map("is_archived")
   assets                     CcaAsset[]
   scheduleEntries            CcaScheduleEntry[]
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
 
   @@map("cca_classes")
 }
@@ -1265,26 +1265,26 @@ model CcaAsset {
 }
 
 model CcaScheduleEntry {
-  id                 String   @id @default(uuid())
-  classId            String   @map("class_id")
-  ccaClass           CcaClass @relation(fields: [classId], references: [id])
-  taxYear            Int      @map("tax_year")
-  openingUcc         Decimal  @map("opening_ucc") @db.Decimal(15, 2)
-  additions          Decimal  @default(0) @db.Decimal(15, 2)
-  dispositions       Decimal  @default(0) @db.Decimal(15, 2)
-  halfYearAdjustment Decimal  @default(0) @map("half_year_adjustment") @db.Decimal(15, 2)
-  accIiAddition      Decimal  @default(0) @map("acc_ii_addition") @db.Decimal(15, 2)
-  ccaRate            Decimal  @map("cca_rate") @db.Decimal(6, 4)
-  ccaBase            Decimal  @default(0) @map("cca_base") @db.Decimal(15, 2)
-  ccaMax             Decimal  @default(0) @map("cca_max") @db.Decimal(15, 2)
-  ccaClaimed         Decimal  @default(0) @map("cca_claimed") @db.Decimal(15, 2)
-  closingUcc         Decimal  @map("closing_ucc") @db.Decimal(15, 2)
-  method             String   @default("half_year") // half_year | accii | diep | full | none
-  status             String   @default("draft") // draft | posted | locked
-  isSeed             Boolean  @default(false) @map("is_seed")
-  isCatchUp          Boolean  @default(false) @map("is_catch_up") // prior-period correction booked here
-  catchUpForYear     Int?     @map("catch_up_for_year") // the locked year this corrects
-  isOverridden       Boolean  @default(false) @map("is_overridden")
+  id                 String    @id @default(uuid())
+  classId            String    @map("class_id")
+  ccaClass           CcaClass  @relation(fields: [classId], references: [id])
+  taxYear            Int       @map("tax_year")
+  openingUcc         Decimal   @map("opening_ucc") @db.Decimal(15, 2)
+  additions          Decimal   @default(0) @db.Decimal(15, 2)
+  dispositions       Decimal   @default(0) @db.Decimal(15, 2)
+  halfYearAdjustment Decimal   @default(0) @map("half_year_adjustment") @db.Decimal(15, 2)
+  accIiAddition      Decimal   @default(0) @map("acc_ii_addition") @db.Decimal(15, 2)
+  ccaRate            Decimal   @map("cca_rate") @db.Decimal(6, 4)
+  ccaBase            Decimal   @default(0) @map("cca_base") @db.Decimal(15, 2)
+  ccaMax             Decimal   @default(0) @map("cca_max") @db.Decimal(15, 2)
+  ccaClaimed         Decimal   @default(0) @map("cca_claimed") @db.Decimal(15, 2)
+  closingUcc         Decimal   @map("closing_ucc") @db.Decimal(15, 2)
+  method             String    @default("half_year") // half_year | accii | diep | full | none
+  status             String    @default("draft") // draft | posted | locked
+  isSeed             Boolean   @default(false) @map("is_seed")
+  isCatchUp          Boolean   @default(false) @map("is_catch_up") // prior-period correction booked here
+  catchUpForYear     Int?      @map("catch_up_for_year") // the locked year this corrects
+  isOverridden       Boolean   @default(false) @map("is_overridden")
   overrides          Json?
   // AS-FILED snapshot — frozen when status->locked, NEVER touched by recompute
   filedOpeningUcc    Decimal?  @map("filed_opening_ucc") @db.Decimal(15, 2)
@@ -1324,29 +1324,27 @@ model FilingExport {
 
 /**
  * T1Return — a Canadian personal income-tax return (T1) for one filer/year.
- *
  * Scope v1: a MARRIED, full-year Alberta resident CCPC owner paid PERSONALLY via
  * the company's own T5 dividends. The app PREPARES & VERIFIES the return; it can
  * NEVER NETFILE — there is no "filed" status (draft | prepared | superseded only).
- *
  * Design posture (mirrors TaxSlip / FilingExport):
- *  - One effective return per (taxYear, partyId); amendments are NEW rows in an
- *    amendsId chain with amendmentSeq+1 (prior -> "superseded").
- *  - lines/linesOverride are JSON keyed by CRA line number (effective value =
- *    linesOverride[k] ?? lines[k]).
- *  - NO SIN-bearing artifact persisted beyond the AES-GCM ciphers; the export is
- *    regenerated in memory on authorized download. Only checksum + validation
- *    report + line snapshot are stored (resultSnapshot).
- *  - engineVersion = "{computeSemver}+{rateYear}+{provHash}"; reopening a prepared
- *    return whose recomputed engineVersion differs forces an explicit re-prepare.
+ * - One effective return per (taxYear, partyId); amendments are NEW rows in an
+ * amendsId chain with amendmentSeq+1 (prior -> "superseded").
+ * - lines/linesOverride are JSON keyed by CRA line number (effective value =
+ * linesOverride[k] ?? lines[k]).
+ * - NO SIN-bearing artifact persisted beyond the AES-GCM ciphers; the export is
+ * regenerated in memory on authorized download. Only checksum + validation
+ * report + line snapshot are stored (resultSnapshot).
+ * - engineVersion = "{computeSemver}+{rateYear}+{provHash}"; reopening a prepared
+ * return whose recomputed engineVersion differs forces an explicit re-prepare.
  */
 model T1Return {
-  id           String  @id @default(uuid())
-  taxYear      Int     @map("tax_year")
-  province     String  @default("AB") // filer's province of residence on Dec 31; NEVER inherited from CompanySettings
-  status       String  @default("draft") // draft | prepared | superseded (NEVER "filed")
-  amendmentSeq Int     @default(0) @map("amendment_seq") // T1-ADJ chain
-  amendsId     String? @map("amends_id")
+  id           String     @id @default(uuid())
+  taxYear      Int        @map("tax_year")
+  province     String     @default("AB") // filer's province of residence on Dec 31; NEVER inherited from CompanySettings
+  status       String     @default("draft") // draft | prepared | superseded (NEVER "filed")
+  amendmentSeq Int        @default(0) @map("amendment_seq") // T1-ADJ chain
+  amendsId     String?    @map("amends_id")
   amends       T1Return?  @relation("T1Amendment", fields: [amendsId], references: [id])
   amendedBy    T1Return[] @relation("T1Amendment")
 
@@ -1360,10 +1358,10 @@ model T1Return {
   taxpayerDobSnapshot     DateTime? @map("taxpayer_dob_snapshot") @db.Date // drives age amount + identification jacket
 
   // Marital status (v1 supports married/common-law; required spouse fields below when married).
-  maritalStatus           String    @default("single") @map("marital_status") // single | married | commonLaw | separated | divorced | widowed
-  spouseFirstNameSnapshot String?   @map("spouse_first_name_snapshot")
-  spouseSinCipher         String?   @map("spouse_sin_cipher") // AES-GCM (iv:tag:ct); masked in UI, full only in in-memory export
-  spouseNetIncome         Decimal?  @map("spouse_net_income") @db.Decimal(14, 2) // her line 23600; REQUIRED when married/common-law
+  maritalStatus           String   @default("single") @map("marital_status") // single | married | commonLaw | separated | divorced | widowed
+  spouseFirstNameSnapshot String?  @map("spouse_first_name_snapshot")
+  spouseSinCipher         String?  @map("spouse_sin_cipher") // AES-GCM (iv:tag:ct); masked in UI, full only in in-memory export
+  spouseNetIncome         Decimal? @map("spouse_net_income") @db.Decimal(14, 2) // her line 23600; REQUIRED when married/common-law
 
   lines         Json  @default("{}") // engine-computed: CRA lineNumber (string) -> number
   linesOverride Json? @map("lines_override") // manual entry/override: lineNumber -> number
@@ -1388,19 +1386,16 @@ model T1Return {
 
 /**
  * T2Return — a federal corporate income-tax return (T2) for one fiscal year.
- *
  * Scope v1 (locked persona): an owner-managed CCPC, Alberta-resident, DECEMBER-31
  * fiscal year-end, FULL 12-month years only, ACTIVE business income only, single
  * shareholder, paid via the corporation's OWN dividends. The app PREPARES &
  * VERIFIES the return; it can NEVER transmit (no CRA Corporation Internet Filing).
  * There is no "filed" status (draft | prepared | superseded only).
- *
  * The filer is THE COMPANY, so the natural key is (fiscalYearEnd, amendmentSeq) —
  * NOT (taxYear, partyId) like T1Return. The fiscalYearStart/End pair is the GL
  * window; taxationYear (calendar year the FYE falls in) is the rate-lookup key;
  * daysInYear is the EXPLICIT day count (365/366 normally; <365 short years are
  * gated OUT in v1 with a verify ERROR).
- *
  * lines/linesOverride are JSON keyed "form:line" (e.g. "S1:300", "S8:217",
  * "S3:460", "GIFI:2599"); effective value = linesOverride[k] ?? lines[k].
  * engineVersion = "{computeSemver}+{rateYear}+{fedHash}+{abHash}+{acciiYear}";
@@ -1415,9 +1410,9 @@ model T2Return {
   taxationYear    Int      @map("taxation_year") // calendar year the FYE falls in (rate key)
   daysInYear      Int      @default(365) @map("days_in_year") // EXPLICIT; <365 = short year (gated v1)
 
-  status       String  @default("draft") // draft | prepared | superseded (NEVER "filed")
-  amendmentSeq Int     @default(0) @map("amendment_seq")
-  amendsId     String? @map("amends_id")
+  status       String     @default("draft") // draft | prepared | superseded (NEVER "filed")
+  amendmentSeq Int        @default(0) @map("amendment_seq")
+  amendsId     String?    @map("amends_id")
   amends       T2Return?  @relation("T2Amendment", fields: [amendsId], references: [id])
   amendedBy    T2Return[] @relation("T2Amendment")
 
@@ -1438,13 +1433,13 @@ model T2Return {
   // capital, opening continuity confirmation) live in lines/linesOverride + the
   // T2ContinuityBalance record; no dedicated columns needed for v1.
 
-  resultSnapshot Json?   @map("result_snapshot") // frozen { federal:T2Result, alberta:AT1Result } at prepare
-  engineVersion  String  @default("") @map("engine_version") // {semver}+{rateYear}+{fedHash}+{abHash}+{acciiYear}
+  resultSnapshot Json?     @map("result_snapshot") // frozen { federal:T2Result, alberta:AT1Result } at prepare
+  engineVersion  String    @default("") @map("engine_version") // {semver}+{rateYear}+{fedHash}+{abHash}+{acciiYear}
   preparedAt     DateTime? @map("prepared_at")
-  notes          String  @default("")
-  createdById    String? @map("created_by_id")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  notes          String    @default("")
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([fiscalYearEnd, amendmentSeq])
   @@index([taxationYear])
@@ -1456,7 +1451,6 @@ model T2Return {
 /**
  * AT1Return — the Alberta corporate-tax return (AT1), a SIBLING of T2Return so a
  * federal reassessment and an Alberta reassessment version + amend INDEPENDENTLY.
- *
  * Alberta is outside the federal-provincial tax-collection agreement, so the
  * federal T2 carries NO Alberta line; Alberta tax is computed here and the user
  * re-keys it into Alberta TRA Net File separately. lines keyed by AT1 line number
@@ -1469,27 +1463,27 @@ model AT1Return {
   taxationYear    Int      @map("taxation_year")
   daysInYear      Int      @default(365) @map("days_in_year")
 
-  status       String  @default("draft") // draft | prepared | superseded
-  amendmentSeq Int     @default(0) @map("amendment_seq")
-  amendsId     String? @map("amends_id")
+  status       String      @default("draft") // draft | prepared | superseded
+  amendmentSeq Int         @default(0) @map("amendment_seq")
+  amendsId     String?     @map("amends_id")
   amends       AT1Return?  @relation("AT1Amendment", fields: [amendsId], references: [id])
   amendedBy    AT1Return[] @relation("AT1Amendment")
 
-  legalNameSnapshot       String @default("") @map("legal_name_snapshot")
-  albertaCanSnapshot      String @default("") @map("alberta_can_snapshot") // 10-digit Alberta CAN
-  provinceSnapshot        String @default("AB") @map("province_snapshot")
+  legalNameSnapshot  String @default("") @map("legal_name_snapshot")
+  albertaCanSnapshot String @default("") @map("alberta_can_snapshot") // 10-digit Alberta CAN
+  provinceSnapshot   String @default("AB") @map("province_snapshot")
 
   lines         Json  @default("{}")
   linesOverride Json? @map("lines_override")
   pulledRefs    Json? @map("pulled_refs")
 
-  resultSnapshot Json?   @map("result_snapshot") // frozen AT1Result at prepare
-  engineVersion  String  @default("") @map("engine_version") // {semver}+{rateYear}+{abHash}+{acciiYear}
+  resultSnapshot Json?     @map("result_snapshot") // frozen AT1Result at prepare
+  engineVersion  String    @default("") @map("engine_version") // {semver}+{rateYear}+{abHash}+{acciiYear}
   preparedAt     DateTime? @map("prepared_at")
-  notes          String  @default("")
-  createdById    String? @map("created_by_id")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  notes          String    @default("")
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([fiscalYearEnd, amendmentSeq])
   @@index([taxationYear])
@@ -1500,7 +1494,6 @@ model AT1Return {
 
 /**
  * T2ContinuityBalance — RDTOH / GRIP roll-forward, one row per fiscal year.
- *
  * Each year's OPENING balances = the prior year's filed CLOSING balances (mirrors
  * CcaScheduleEntry's filed-snapshot pattern). The FIRST filed year has no prior
  * row, so the openings are entered manually and `openingConfirmed` must be ticked
@@ -1520,9 +1513,9 @@ model T2ContinuityBalance {
   openingConfirmed Boolean @default(false) @map("opening_confirmed") // blocks prepare in the first filed year
 
   // AS-FILED closing snapshot — frozen at prepare, becomes next year's opening.
-  filedClosingErdtoh  Decimal? @map("filed_closing_erdtoh") @db.Decimal(14, 2)
-  filedClosingNerdtoh Decimal? @map("filed_closing_nerdtoh") @db.Decimal(14, 2)
-  filedClosingGrip    Decimal? @map("filed_closing_grip") @db.Decimal(14, 2)
+  filedClosingErdtoh  Decimal?  @map("filed_closing_erdtoh") @db.Decimal(14, 2)
+  filedClosingNerdtoh Decimal?  @map("filed_closing_nerdtoh") @db.Decimal(14, 2)
+  filedClosingGrip    Decimal?  @map("filed_closing_grip") @db.Decimal(14, 2)
   filedAt             DateTime? @map("filed_at")
 
   createdAt DateTime @default(now())
@@ -1542,39 +1535,66 @@ model T2ContinuityBalance {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model ForecastScenario {
-  id         String @id @default(uuid())
-  name       String
-  kind       String @default("personal") // 'personal' | 'business'
-  startYear  Int    @map("start_year")
-  startMonth Int    @map("start_month") // 0-11
-  monthCount Int    @default(12) @map("month_count")
-  viewFrom   Int    @default(0) @map("view_from")
-  viewTo     Int    @default(11) @map("view_to")
-  sortOrder  Int    @default(0) @map("sort_order")
+  id                   String   @id @default(uuid())
+  name                 String
+  kind                 String   @default("personal") // 'personal' | 'business'
+  startYear            Int      @map("start_year")
+  startMonth           Int      @map("start_month") // 0-11
+  monthCount           Int      @default(12) @map("month_count")
+  viewFrom             Int      @default(0) @map("view_from")
+  viewTo               Int      @default(11) @map("view_to")
+  sortOrder            Int      @default(0) @map("sort_order")
   // Books-linked scenario: income/expense rows are derived from Books invoices,
   // bills, recurring templates and expenses at load time (read-only in the UI).
-  booksLinked Boolean @default(false) @map("books_linked")
+  booksLinked          Boolean  @default(false) @map("books_linked")
   // Personal scenario: GL accounts whose posted activity is owner compensation
   // (salary, dividends, shareholder draws); feeds the "From Business" income row.
   ownerPayGlAccountIds String[] @default([]) @map("owner_pay_gl_account_ids")
   // How the owner is paid. 'dividend' surfaces the CRA fiscal-year set-aside on
   // the personal Expenses page; 'salary' hides it (tax is withheld at source).
-  salaryMethod String @default("dividend") @map("salary_method")
+  salaryMethod         String   @default("dividend") @map("salary_method")
   // How the CRA set-aside is spread across the year. 'cumulative' walks the
   // progressive brackets month by month; 'flat' annualizes the run rate and
   // applies one rate evenly (safer when starting mid-year).
-  setAsideMethod String @default("cumulative") @map("set_aside_method")
+  setAsideMethod       String   @default("cumulative") @map("set_aside_method")
 
   rows          ForecastRow[]
   categories    ForecastCategory[]
   assets        ForecastAsset[]
   bankBalances  ForecastBankBalance[]
   rateOverrides ForecastRateOverride[]
+  taxOverrides  ForecastTaxOverride[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("forecast_scenarios")
+}
+
+// Manual corrections to a scenario's projected tax bill, set in the UI or by an
+// agent over the API. One row per (scenario, year, field); the projection is
+// computed as usual and these are applied on top.
+//   income / expenses            → replace the figure derived from the workbook
+//   incomeAdjustment / expenseAdjustment → add to it (e.g. a dividend from the
+//                                  shareholder loan that is not in the forecast)
+//   totalTax                     → replace the final bill outright
+model ForecastTaxOverride {
+  id         String           @id @default(uuid())
+  scenarioId String           @map("scenario_id")
+  scenario   ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  /**
+   * Personal: calendar year. Business: the year the fiscal year ends in.
+   */
+  year       Int
+  field      String
+  value      Decimal          @db.Decimal(14, 2)
+  note       String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  @@unique([scenarioId, year, field])
+  @@index([scenarioId, year])
+  @@map("forecast_tax_overrides")
 }
 
 // Expense grouping header (WealthPilot's "_Category" rows).
@@ -1659,19 +1679,19 @@ model ForecastFlowDay {
 }
 
 model ForecastAsset {
-  id              String           @id @default(uuid())
-  scenarioId      String           @map("scenario_id")
-  scenario        ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  id              String                   @id @default(uuid())
+  scenarioId      String                   @map("scenario_id")
+  scenario        ForecastScenario         @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   name            String
-  type            String           @default("other") // 'property' | 'vehicle' | 'investment' | 'cash' | 'other'
-  value           Decimal          @default(0) @db.Decimal(14, 2)
-  sortOrder       Int              @default(0) @map("sort_order")
-  linkedDebtId    String?          @map("linked_debt_id")
-  linkedDebt      ForecastRow?     @relation("AssetLinkedDebt", fields: [linkedDebtId], references: [id], onDelete: SetNull)
-  linkedFromDebts ForecastRow[]    @relation("DebtLinkedAsset")
+  type            String                   @default("other") // 'property' | 'vehicle' | 'investment' | 'cash' | 'other'
+  value           Decimal                  @default(0) @db.Decimal(14, 2)
+  sortOrder       Int                      @default(0) @map("sort_order")
+  linkedDebtId    String?                  @map("linked_debt_id")
+  linkedDebt      ForecastRow?             @relation("AssetLinkedDebt", fields: [linkedDebtId], references: [id], onDelete: SetNull)
+  linkedFromDebts ForecastRow[]            @relation("DebtLinkedAsset")
   // How often this asset's value should be re-checked. Property and vehicles
   // drift slowly (quarterly); market-linked holdings want monthly.
-  reviewCadence   String           @default("quarterly") @map("review_cadence") // 'monthly' | 'quarterly' | 'annual' | 'none'
+  reviewCadence   String                   @default("quarterly") @map("review_cadence") // 'monthly' | 'quarterly' | 'annual' | 'none'
   valuations      ForecastAssetValuation[]
 
   createdAt DateTime @default(now())

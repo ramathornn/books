@@ -88,6 +88,20 @@ export interface BookEvent {
   refId?: string
 }
 
+/**
+ * Another scenario's rows, reachable from formulas as `@personal.income.Foo`.
+ * Keyed by lowercased scenario name and by kind ("personal" / "business").
+ */
+export interface ExternalScope {
+  name: string
+  kind: 'personal' | 'business'
+  months: string[]
+  income: Record<string, CellValue[]>
+  expenses: Record<string, CellValue[] | null>
+  receivables: Record<string, CellValue[]>
+  external?: Record<string, ExternalScope>
+}
+
 export interface ForecastData extends ScenarioSummary {
   booksLinked: boolean
   /** 'dividend' shows the CRA set-aside row on personal Expenses; 'salary' hides it. */
@@ -104,6 +118,8 @@ export interface ForecastData extends ScenarioSummary {
   /** Cash-on-hand anchor taken from Books banking (only when booksLinked and no manual snapshot that month). */
   linkedBank: { monthIndex: number; day: number; amount: number; asOf: string } | null
   months: string[]
+  /** Other scenarios' rows, for cross-scenario formula refs. Never persisted. */
+  external?: Record<string, ExternalScope>
   viewFrom: number
   viewTo: number
   income: Record<string, CellValue[]>

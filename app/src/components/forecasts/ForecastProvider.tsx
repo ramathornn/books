@@ -8,7 +8,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
-import { SCENARIO_COOKIE, type Asset, type CellValue, type DebtSettings, type FlowDayValue, type ForecastData, type Rates, type ScenarioSummary, type Section } from '@/lib/forecasts/types'
+import { SCENARIO_COOKIE, type Asset, type CellValue, type DebtSettings, type ExternalScope, type FlowDayValue, type ForecastData, type Rates, type ScenarioSummary, type Section } from '@/lib/forecasts/types'
 import { computeForecast, type Computed } from '@/lib/forecasts/computed'
 import { setFlowDay as setFlowDayPure, clearFlowDay as clearFlowDayPure, setRowFlowDay as setRowFlowDayPure } from '@/lib/forecasts/flowDays'
 import { buildMonths, parseMonthLabel } from '@/lib/forecasts/months'
@@ -25,6 +25,8 @@ interface ForecastStore {
   switchScenario: (id: string) => void
   refresh: () => Promise<void>
   updateCell: (section: Section, key: string, index: number, value: CellValue) => void
+  /** Write one cell in another scenario (the formula bar, after a cross-scenario pick). */
+  updateCellIn: (scenarioId: string, rowId: string, index: number, value: CellValue) => Promise<boolean>
   updateCells: (section: Section, key: string, entries: { index: number; value: CellValue }[]) => void
   setViewRange: (from: number, to: number) => void
   addRevenueItem: (name: string, currency?: string) => Promise<boolean>
@@ -84,16 +86,24 @@ interface Props {
   children: React.ReactNode
 }
 
+/** Siblings arrive attached from the server; the client keeps its own copy, and
+ *  the editable workbook stays lean (every mutation deep-clones it). */
+const stripExternal = (d: ForecastData): ForecastData => {
+  if (!d.external) return d
+  const { external: _drop, ...rest } = d
+  return rest as ForecastData
+}
+
 export function ForecastProvider({ initialData, scenarios, initialRates, readOnly, children }: Props) {
   const router = useRouter()
-  const [data, setData] = useState<ForecastData>(initialData)
+  const [data, setData] = useState<ForecastData>(() => stripExternal(initialData))
   const [saving, setSaving] = useState(false)
   const pending = useRef(0)
   const dataRef = useRef(data)
   dataRef.current = data
 
   // A new scenario arrived from the server (switch or refresh).
-  useEffect(() => { setData(initialData) }, [initialData])
+  useEffect(() => { setData(stripExternal(initialData)) }, [initialData])
 
   const rates = useMemo<Rates>(() => {
     const r: Rates = { ...initialRates }
@@ -101,14 +111,46 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     return r
   }, [initialRates, data.rateOverrides])
 
-  const computed = useMemo(() => computeForecast(data, rates), [data, rates])
+  // Sibling scenarios, so formulas can reference across the business/personal
+  // divide. Fetched once per scenario; failures just leave the map empty.
+  const [external, setExternal] = useState<Record<string, ExternalScope>>({})
+  const scenarioId = data.id
+  useEffect(() => {
+    const siblings = scenarios.filter((s) => s.id !== scenarioId)
+    if (!siblings.length) { setExternal({}); return }
+    let cancelled = false
+    void (async () => {
+      const map: Record<string, ExternalScope> = {}
+      await Promise.all(siblings.map(async (s) => {
+        try {
+          const res = await fetch(`/api/forecasts/${s.id}`, { cache: 'no-store' })
+          if (!res.ok) return
+          const d = (await res.json()) as ForecastData
+          const scope: ExternalScope = { name: d.name, kind: d.kind, months: d.months, income: d.income, expenses: d.expenses, receivables: d.receivables }
+          map[d.name.toLowerCase()] = scope
+          if (!map[d.kind]) map[d.kind] = scope
+        } catch { /* sibling stays unavailable */ }
+      }))
+      if (!cancelled) setExternal(map)
+    })()
+    return () => { cancelled = true }
+  }, [scenarios, scenarioId])
+
+  // Consumers see the workbook with its siblings attached; every mutation still
+  // works off `data`/`dataRef`, so nothing external is ever cloned or saved.
+  const scopedData = useMemo(
+    () => (Object.keys(external).length ? { ...data, external } : data),
+    [data, external]
+  )
+
+  const computed = useMemo(() => computeForecast(scopedData, rates), [scopedData, rates])
 
   const base = `/api/forecasts/${data.id}`
 
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(base, { cache: 'no-store' })
-      if (res.ok) setData(await res.json())
+      if (res.ok) setData(stripExternal(await res.json()))
     } catch { /* keep current state */ }
   }, [base])
 
@@ -150,6 +192,22 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }
 
   // ── Cells ──────────────────────────────────────────────────────────────
+
+  /** Save one cell in a different scenario, then let that scenario reload on its own. */
+  const updateCellIn = useCallback(async (targetScenarioId: string, targetRowId: string, index: number, value: CellValue): Promise<boolean> => {
+    if (readOnly) { toast.error('Read-only access: changes are disabled.'); return false }
+    setSaving(true)
+    try {
+      await api(`/api/forecasts/${targetScenarioId}/cells`, 'PUT', { cells: [{ rowId: targetRowId, monthIndex: index, value }] })
+      if (targetScenarioId === dataRef.current.id) await refresh()
+      return true
+    } catch (e) {
+      toast.error((e as Error).message || 'Save failed')
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [readOnly, refresh])
 
   const updateCells = useCallback((section: Section, key: string, entries: { index: number; value: CellValue }[]) => {
     if (!entries.length) return
@@ -404,9 +462,14 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
           rows.push(section === 'expenses' ? { id, sortOrder: i, categoryId: currentCat } : { id, sortOrder: i })
         })
         await api(`${base}/rows/reorder`, 'PUT', { section: API_SECTION[section], categories: section === 'expenses' ? categories : undefined, rows })
+        // The server is the authority on order (categories carry their own
+        // sort, rows carry another), so re-read it instead of trusting the
+        // local guess — a freshly added row or category could otherwise sit in
+        // the wrong place until the next page load.
+        await refresh()
       }
     )
-  }, [base, mutate])
+  }, [base, mutate, refresh])
 
   const toggleRowVisibility = useCallback((section: Section, key: string) => {
     const id = rowId(dataRef.current, section, key)
@@ -627,7 +690,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   }, [addRow, updateCells])
 
   const value = useMemo<ForecastStore>(() => ({
-    data, scenarios, rates, computed, readOnly, saving,
+    data: scopedData, scenarios, rates, computed, readOnly, saving, updateCellIn,
     switchScenario, refresh,
     updateCell, updateCells, setViewRange,
     addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable,
@@ -636,7 +699,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
     isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

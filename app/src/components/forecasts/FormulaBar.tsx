@@ -7,8 +7,9 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Section } from '@/lib/forecasts/types'
-import { buildCellRef, buildSuggestions, getCurrentToken, getMonthPartial, isFormula, replaceCurrentToken, type RefSuggestion } from '@/lib/forecasts/formula'
+import { buildCellRef, buildSuggestions, getCurrentToken, getMonthPartial, isFormula, parseTypedNumber, replaceCurrentToken, type RefSuggestion } from '@/lib/forecasts/formula'
 import { useForecast } from './ForecastProvider'
+import { toast } from '@/lib/toast'
 
 export interface SelectMode {
   section: Section
@@ -17,13 +18,27 @@ export interface SelectMode {
   formula: string
   originPath: string
   picking: boolean
+  /** The cell being edited belongs to this scenario, even after switching away. */
+  originScenarioId: string
+  originScenarioName: string
+  /** Row id in the origin scenario; needed to save from a different scenario. */
+  originRowId: string | null
+  /** Month label of the cell being edited, for the header chip. */
+  originMonth: string | null
+}
+
+export interface SelectOrigin {
+  scenarioId: string
+  scenarioName: string
+  rowId: string | null
+  month: string | null
 }
 
 interface FormulaBarCtx {
   selectMode: SelectMode | null
-  startSelect: (section: Section, key: string, index: number, formula: string, originPath: string) => void
+  startSelect: (section: Section, key: string, index: number, formula: string, originPath: string, origin: SelectOrigin) => void
   cancelSelect: () => void
-  insertRef: (section: Section, key: string, monthLabel: string | null) => void
+  insertRef: (section: Section, key: string, monthLabel: string | null, scenario?: string | null) => void
   updateFormula: (formula: string) => void
   setPicking: (picking: boolean) => void
   preventBlurRef: React.RefObject<boolean>
@@ -37,13 +52,26 @@ export function FormulaBarProvider({ children }: { children: React.ReactNode }) 
   const [selectMode, setSelectMode] = useState<SelectMode | null>(null)
   const preventBlurRef = useRef(false)
 
-  const startSelect = useCallback((section: Section, key: string, index: number, formula: string, originPath: string) => {
-    setSelectMode({ section, key, index, formula, originPath, picking: false })
+  const startSelect = useCallback((section: Section, key: string, index: number, formula: string, originPath: string, origin: SelectOrigin) => {
+    setSelectMode({
+      section, key, index, formula, originPath, picking: false,
+      originScenarioId: origin.scenarioId,
+      originScenarioName: origin.scenarioName,
+      originRowId: origin.rowId,
+      originMonth: origin.month,
+    })
   }, [])
   const cancelSelect = useCallback(() => setSelectMode(null), [])
   const setPicking = useCallback((picking: boolean) => setSelectMode((p) => (p ? { ...p, picking } : null)), [])
-  const insertRef = useCallback((section: Section, key: string, monthLabel: string | null) => {
-    setSelectMode((p) => (p ? { ...p, formula: p.formula + buildCellRef(section, key, monthLabel) } : null))
+  const insertRef = useCallback((section: Section, key: string, monthLabel: string | null, scenario: string | null = null) => {
+    setSelectMode((p) => {
+      if (!p) return null
+      const ref = buildCellRef(section, key, monthLabel, scenario)
+      // A bare number in the bar is the cell's old value, not something to
+      // build on — the first pick replaces it and starts the formula.
+      const base = isFormula(p.formula) ? p.formula : '='
+      return { ...p, formula: base + ref }
+    })
   }, [])
   const updateFormula = useCallback((formula: string) => setSelectMode((p) => (p ? { ...p, formula } : null)), [])
   const holdBlur = useCallback(() => {
@@ -126,7 +154,7 @@ const SECTION_ROUTES: Record<Section, string> = { income: '/forecasts/income', e
 
 export default function FormulaBar() {
   const bar = useFormulaBar()
-  const { data, updateCell } = useForecast()
+  const { data, scenarios, updateCell, updateCellIn, switchScenario } = useForecast()
   const router = useRouter()
   const pathname = usePathname()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -138,10 +166,23 @@ export default function FormulaBar() {
 
   if (!bar || !selectMode) return null
 
-  const goBack = () => { if (selectMode.originPath && pathname !== selectMode.originPath) router.push(selectMode.originPath) }
-  const handleDone = () => {
+  // The cell being edited may live in a scenario the user has since switched
+  // away from; Done must write there, not into whatever is on screen.
+  const away = selectMode.originScenarioId !== data.id
+  const goBack = () => {
+    if (away) switchScenario(selectMode.originScenarioId)
+    if (selectMode.originPath && pathname !== selectMode.originPath) router.push(selectMode.originPath)
+  }
+  const handleDone = async () => {
     const trimmed = selectMode.formula.trim()
-    updateCell(selectMode.section, selectMode.key, selectMode.index, trimmed.startsWith('=') ? trimmed : parseFloat(trimmed) || 0)
+    const value = trimmed.startsWith('=') ? trimmed : parseTypedNumber(trimmed)
+    if (away) {
+      if (!selectMode.originRowId) { toast.error('That row has no id yet — reopen the cell and try again.'); return }
+      const saved = await updateCellIn(selectMode.originScenarioId, selectMode.originRowId, selectMode.index, value)
+      if (!saved) return
+    } else {
+      updateCell(selectMode.section, selectMode.key, selectMode.index, value)
+    }
     goBack(); bar.cancelSelect()
   }
   const handleCancel = () => { goBack(); bar.cancelSelect() }
@@ -161,7 +202,7 @@ export default function FormulaBar() {
         if (e.key === 'Tab' || !exact) { e.preventDefault(); replaceToken(rowSugs[acIdx].ref); return }
       }
     }
-    if (e.key === 'Enter') { e.preventDefault(); handleDone() }
+    if (e.key === 'Enter') { e.preventDefault(); void handleDone() }
     if (e.key === 'Escape') handleCancel()
   }
 
@@ -170,7 +211,11 @@ export default function FormulaBar() {
       className="fixed bottom-4 left-1/2 z-50 flex w-[min(880px,calc(100%-2rem))] -translate-x-1/2 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-xl lg:left-[calc(50%+110px)]"
       onMouseDown={bar.holdBlur}
     >
-      <div className="max-w-[160px] truncate rounded bg-gray-100 px-2 py-1 font-mono text-[12px] text-gray-700" title={`${selectMode.section} › ${selectMode.key} · ${data.months[selectMode.index]}`}>
+      <div
+        className={`max-w-[200px] truncate rounded px-2 py-1 font-mono text-[12px] ${away ? 'bg-[#FFF0B3] text-[#7A5B00]' : 'bg-gray-100 text-gray-700'}`}
+        title={`Editing ${selectMode.section} › ${selectMode.key} · ${selectMode.originMonth ?? ''} in ${selectMode.originScenarioName}`}
+      >
+        {away && <span className="mr-1 opacity-70">{selectMode.originScenarioName} ›</span>}
         {selectMode.key}
       </div>
       <div className="relative flex-1">
@@ -193,7 +238,7 @@ export default function FormulaBar() {
         title="Click cells to insert references"
         className={`rounded border px-2 py-1 text-[12px] ${selectMode.picking ? 'border-[#0075DD] bg-[#DEEBFF] text-[#0747A6]' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
       >
-        Pick
+        {selectMode.picking ? 'Picking' : 'Pick'}
       </button>
       {selectMode.picking && (
         <div className="flex gap-1">
@@ -207,9 +252,23 @@ export default function FormulaBar() {
               {sec === 'receivables' ? 'debts' : sec}
             </button>
           ))}
+          {scenarios.length > 1 && <span className="mx-1 w-px self-stretch bg-gray-200" />}
+          {scenarios.length > 1 && scenarios.map((sc) => (
+            <button
+              key={sc.id}
+              type="button"
+              onClick={() => switchScenario(sc.id)}
+              title={`Pick cells from ${sc.name}`}
+              className={`max-w-[110px] truncate rounded px-2 py-1 text-[11px] ${sc.id === data.id ? 'bg-[#002D79] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              {sc.name}
+            </button>
+          ))}
         </div>
       )}
-      <button type="button" onClick={handleDone} className="rounded bg-[#038A06] px-3 py-1 text-[12px] font-medium text-white hover:bg-[#026e05]">Done</button>
+      <button type="button" onClick={() => void handleDone()} className="rounded bg-[#038A06] px-3 py-1 text-[12px] font-medium text-white hover:bg-[#026e05]">
+        {selectMode.picking || away ? 'Submit' : 'Done'}
+      </button>
       <button type="button" onClick={handleCancel} className="rounded px-2 py-1 text-[12px] text-gray-500 hover:bg-gray-100" aria-label="Cancel">✕</button>
     </div>
   )

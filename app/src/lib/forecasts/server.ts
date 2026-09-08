@@ -2,7 +2,7 @@
 // client ForecastData shape, and bootstrap the default scenarios.
 import 'server-only'
 import prisma from '@/lib/prisma'
-import type { Asset, BookEvent, CellValue, DebtSettings, FlowDays, ForecastData, ForecastIds, LinkedInfo, ScenarioSummary, Section } from './types'
+import type { Asset, BookEvent, CellValue, DebtSettings, ExternalScope, FlowDays, ForecastData, ForecastIds, LinkedInfo, ScenarioSummary, Section } from './types'
 import { buildMonths, currentMonthIndex } from './months'
 import { booksCashAsOf, buildBooksExpenses, buildBooksIncome, buildOwnerPay } from './books'
 
@@ -31,7 +31,7 @@ function toSummary(s: { id: string; name: string; kind: string }): ScenarioSumma
   return { id: s.id, name: s.name, kind: s.kind === 'business' ? 'business' : 'personal' }
 }
 
-export async function loadScenario(id: string): Promise<ForecastData | null> {
+export async function loadScenario(id: string, withExternal = true): Promise<ForecastData | null> {
   const s = await prisma.forecastScenario.findUnique({
     where: { id },
     include: {
@@ -214,7 +214,7 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
     bookEvents.push(...own.events)
   }
 
-  return {
+  const data: ForecastData = {
     booksLinked: s.booksLinked,
     salaryMethod: s.salaryMethod === 'salary' ? 'salary' : 'dividend',
     setAsideMethod: s.setAsideMethod === 'flat' ? 'flat' : 'cumulative',
@@ -241,6 +241,34 @@ export async function loadScenario(id: string): Promise<ForecastData | null> {
     rateOverrides,
     ids,
   }
+  // Only pay for the sibling workbooks when a formula actually reaches across.
+  if (withExternal && hasCrossScenarioRef(data)) data.external = await loadExternalScopes(id)
+  return data
+}
+
+/** Does any cell reach into another scenario (`=@personal.income.Foo`)? */
+function hasCrossScenarioRef(d: ForecastData): boolean {
+  for (const section of ['income', 'expenses', 'receivables'] as const) {
+    for (const arr of Object.values(d[section])) {
+      if (!arr) continue
+      for (const v of arr) if (typeof v === 'string' && v.includes('@')) return true
+    }
+  }
+  return false
+}
+
+/** Every other scenario, keyed by lowercased name and by kind. */
+async function loadExternalScopes(excludeId: string): Promise<Record<string, ExternalScope>> {
+  const others = await prisma.forecastScenario.findMany({ where: { id: { not: excludeId } }, select: { id: true } })
+  const map: Record<string, ExternalScope> = {}
+  for (const o of others) {
+    const d = await loadScenario(o.id, false)
+    if (!d) continue
+    const scope: ExternalScope = { name: d.name, kind: d.kind, months: d.months, income: d.income, expenses: d.expenses, receivables: d.receivables }
+    map[d.name.toLowerCase()] = scope
+    if (!map[d.kind]) map[d.kind] = scope
+  }
+  return map
 }
 
 /** Extend a scenario's month range so that index `toIndex` exists. */

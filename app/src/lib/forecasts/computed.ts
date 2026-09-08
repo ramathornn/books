@@ -107,7 +107,7 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
       const balances = new Array<number>(months.length).fill(0)
       for (let i = 0; i < months.length; i++) {
         const v = resolveValue(arr[i], data, i)
-        balances[i] = i === 0 || v > 0 ? v : Math.max(0, balances[i - 1] + v)
+        balances[i] = i === 0 || v > 0 ? v : balances[i - 1] + v
       }
       debtBalances[name] = balances
       continue
@@ -124,7 +124,7 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
 
     if (expenseArr) {
       const firstPayment = resolveValue(expenseArr[startIdx], data, startIdx)
-      balances[startIdx] = Math.max(0, startingBalance - firstPayment)
+      balances[startIdx] = startingBalance - firstPayment
     } else {
       balances[startIdx] = startingBalance
     }
@@ -141,13 +141,13 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
       let prev = balances[i - 1]
       if (monthlyRate > 0) prev = prev * (1 + monthlyRate)
       if (expenseArr) {
-        balances[i] = Math.max(0, prev - resolveValue(expenseArr[i], data, i))
+        balances[i] = prev - resolveValue(expenseArr[i], data, i)
       } else if (hasAmortization) {
         balances[i] = Math.max(0, prev - amortPayment)
       } else {
         const raw = resolveValue(arr[i], data, i)
         if (raw > 0) balances[i] = raw
-        else if (raw < 0) balances[i] = Math.max(0, prev + raw)
+        else if (raw < 0) balances[i] = prev + raw
         else balances[i] = prev
       }
     }

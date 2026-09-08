@@ -6,16 +6,31 @@
 //   =receivables.CRAB - expenses.Rent → arithmetic across sections
 //   =(income.Salary + income.Bonus) * 0.9
 //   =income.Salary.Feb'26             → specific month reference
+//   =@personal.income["UGO Dividends"] → a row in another scenario
+//   =@"My Plan".expenses.Rent.Feb'26   → quoted when the name has spaces
 //
 // Supported sections: income, expenses, receivables. Without a month suffix a
 // reference resolves to the same month index as the cell being evaluated.
+// Cross-scenario refs (@name or @kind) match on calendar month, not index, so
+// the two workbooks may cover different date ranges.
 
-import type { CellValue, ForecastData, Section } from './types'
+import type { CellValue, ExternalScope, ForecastData, Section } from './types'
 import { shiftMonthLabel } from './months'
 
 const MAX_DEPTH = 10
 
-type FormulaScope = Pick<ForecastData, 'months' | 'income' | 'expenses' | 'receivables'>
+type FormulaScope = Pick<ForecastData, 'months' | 'income' | 'expenses' | 'receivables'> & {
+  external?: Record<string, ExternalScope>
+}
+
+/** Typed money: tolerate thousands separators, currency symbols and (123) negatives. */
+export function parseTypedNumber(raw: string): number {
+  const t = raw.trim()
+  if (!t) return 0
+  const neg = /^\(.*\)$/.test(t)
+  const n = parseFloat((neg ? t.slice(1, -1) : t).replace(/[$\s,\u00A0'']/g, ''))
+  return Number.isFinite(n) ? (neg ? -n : n) : 0
+}
 
 export function isFormula(value: unknown): value is string {
   return typeof value === 'string' && value.trimStart().startsWith('=')
@@ -52,7 +67,7 @@ export function shiftFormulaMonths(formula: string, offset: number): string {
 type Token =
   | { type: 'op'; value: string }
   | { type: 'num'; value: number }
-  | { type: 'ref'; section: string; row: string; monthLabel: string | null }
+  | { type: 'ref'; section: string; row: string; monthLabel: string | null; scenario: string | null }
 
 const MONTH_SUFFIX = /^([A-Z][a-z]{2})'(\d{2})/
 
@@ -71,27 +86,57 @@ function tokenize(expr: string): Token[] {
       tokens.push({ type: 'num', value: parseFloat(num) || 0 })
       continue
     }
+    if (ch === '@') {
+      const sc = readScenarioName(expr, i + 1)
+      i = sc.end
+      if (i < len && expr[i] === '.') i++
+      const ref = readRef(expr, i, sc.name)
+      i = ref.end
+      tokens.push(ref.token)
+      continue
+    }
     if (/[a-zA-Z_]/.test(ch)) {
-      let word = ''
-      while (i < len && /[a-zA-Z_]/.test(expr[i])) { word += expr[i]; i++ }
-      if (i < len && (expr[i] === '.' || expr[i] === '[')) {
-        let row: { name: string; end: number }
-        if (expr[i] === '.') { i++; row = readRowName(expr, i) } else { i++; row = readBracketName(expr, i) }
-        i = row.end
-        let monthLabel: string | null = null
-        if (i < len && expr[i] === '.') {
-          const mm = expr.slice(i + 1).match(MONTH_SUFFIX)
-          if (mm) { monthLabel = `${mm[1]}'${mm[2]}`; i += 1 + mm[0].length }
-        }
-        tokens.push({ type: 'ref', section: word.toLowerCase(), row: row.name, monthLabel })
-      } else {
-        tokens.push({ type: 'num', value: 0 })
-      }
+      const ref = readRef(expr, i, null)
+      i = ref.end
+      tokens.push(ref.token)
       continue
     }
     i++
   }
   return tokens
+}
+
+/** `section.row` or `section["row"]`, with an optional `.Mon'YY` suffix. */
+function readRef(expr: string, start: number, scenario: string | null): { token: Token; end: number } {
+  const len = expr.length
+  let i = start
+  let word = ''
+  while (i < len && /[a-zA-Z_]/.test(expr[i])) { word += expr[i]; i++ }
+  if (i >= len || (expr[i] !== '.' && expr[i] !== '[')) return { token: { type: 'num', value: 0 }, end: i }
+  let row: { name: string; end: number }
+  if (expr[i] === '.') { i++; row = readRowName(expr, i) } else { i++; row = readBracketName(expr, i) }
+  i = row.end
+  let monthLabel: string | null = null
+  if (i < len && expr[i] === '.') {
+    const mm = expr.slice(i + 1).match(MONTH_SUFFIX)
+    if (mm) { monthLabel = `${mm[1]}'${mm[2]}`; i += 1 + mm[0].length }
+  }
+  return { token: { type: 'ref', section: word.toLowerCase(), row: row.name, monthLabel, scenario }, end: i }
+}
+
+/** The name after "@": a bare word, or "quoted" when it has spaces. */
+function readScenarioName(expr: string, start: number): { name: string; end: number } {
+  const len = expr.length
+  let i = start
+  let name = ''
+  if (i < len && expr[i] === '"') {
+    i++
+    while (i < len && expr[i] !== '"') { name += expr[i]; i++ }
+    if (i < len) i++
+  } else {
+    while (i < len && /[a-zA-Z0-9_]/.test(expr[i])) { name += expr[i]; i++ }
+  }
+  return { name: name.trim(), end: i }
 }
 
 function readRowName(expr: string, start: number): { name: string; end: number } {
@@ -163,8 +208,23 @@ function parseFactor(tokens: Token[], pos: number, data: FormulaScope, monthInde
   if (tok.type === 'num') return { value: tok.value, pos: pos + 1 }
   if (tok.type === 'ref') {
     const section = tok.section as Section
-    const sectionData = section === 'income' || section === 'expenses' || section === 'receivables' ? data[section] : undefined
-    const arr = sectionData ? (sectionData as Record<string, CellValue[] | null>)[tok.row] : undefined
+    if (section !== 'income' && section !== 'expenses' && section !== 'receivables') return { value: 0, pos: pos + 1 }
+
+    // A sibling scenario keeps its own months, so line them up by calendar
+    // month rather than by index.
+    if (tok.scenario) {
+      const ext = data.external?.[tok.scenario.toLowerCase()]
+      if (!ext) return { value: 0, pos: pos + 1 }
+      const label = tok.monthLabel ?? data.months[monthIndex]
+      const idx = label ? ext.months.indexOf(label) : -1
+      if (idx < 0) return { value: 0, pos: pos + 1 }
+      const extArr = (ext[section] as Record<string, CellValue[] | null>)[tok.row]
+      if (!extArr) return { value: 0, pos: pos + 1 }
+      const extScope: FormulaScope = { months: ext.months, income: ext.income, expenses: ext.expenses, receivables: ext.receivables, external: data.external }
+      return { value: resolveValue(extArr[idx], extScope, idx, depth + 1), pos: pos + 1 }
+    }
+
+    const arr = (data[section] as Record<string, CellValue[] | null>)[tok.row]
     if (arr) {
       let idx = monthIndex
       if (tok.monthLabel) {
@@ -184,16 +244,28 @@ export function getFormulaDisplay(value: CellValue | null | undefined): string |
 }
 
 /** Build a reference string for a cell, bracket-quoting names with special characters. */
-export function buildCellRef(section: Section, key: string, monthLabel: string | null = null): string {
+export function buildCellRef(section: Section, key: string, monthLabel: string | null = null, scenario: string | null = null): string {
   const needsBrackets = /[^a-zA-Z0-9_]/.test(key)
   let ref = needsBrackets ? `${section}["${key}"]` : `${section}.${key}`
   if (monthLabel) ref += `.${monthLabel}`
+  if (scenario) ref = `@${/[^a-zA-Z0-9_]/.test(scenario) ? `"${scenario}"` : scenario}.${ref}`
   return ref
+}
+
+/**
+ * How to name `scenario` inside a formula: its kind ("personal" / "business")
+ * when that is unambiguous, otherwise its name.
+ */
+export function scenarioQualifier(
+  scenario: { name: string; kind: 'personal' | 'business' },
+  all: { kind: 'personal' | 'business' }[]
+): string {
+  return all.filter((s) => s.kind === scenario.kind).length === 1 ? scenario.kind : scenario.name
 }
 
 // ─── Autocomplete helpers (shared by the cell editor and the formula bar) ──
 
-export interface RefSuggestion { ref: string; section: Section; key: string }
+export interface RefSuggestion { ref: string; section: Section; key: string; scenario?: string }
 
 export function buildSuggestions(data: FormulaScope): RefSuggestion[] {
   const out: RefSuggestion[] = []
@@ -205,7 +277,33 @@ export function buildSuggestions(data: FormulaScope): RefSuggestion[] {
       out.push({ ref: buildCellRef(section, key), section, key })
     }
   }
+  for (const { scope, qualifier } of externalScopes(data)) {
+    for (const section of sections) {
+      const rows = scope[section] as Record<string, CellValue[] | null>
+      for (const key of Object.keys(rows)) {
+        if (key.startsWith('_') || rows[key] === null) continue
+        out.push({ ref: buildCellRef(section, key, null, qualifier), section, key, scenario: scope.name })
+      }
+    }
+  }
   return out
+}
+
+/**
+ * Sibling scenarios, de-duplicated (the map holds each one under both its name
+ * and its kind). Refs use the kind when it is unambiguous, else the name.
+ */
+export function externalScopes(data: FormulaScope): { scope: ExternalScope; qualifier: string }[] {
+  const seen = new Set<ExternalScope>()
+  const scopes: ExternalScope[] = []
+  for (const scope of Object.values(data.external ?? {})) {
+    if (seen.has(scope)) continue
+    seen.add(scope)
+    scopes.push(scope)
+  }
+  const kindCount = new Map<string, number>()
+  for (const s of scopes) kindCount.set(s.kind, (kindCount.get(s.kind) ?? 0) + 1)
+  return scopes.map((scope) => ({ scope, qualifier: kindCount.get(scope.kind) === 1 ? scope.kind : scope.name }))
 }
 
 /** The token currently being typed (text after the last operator or "="). */

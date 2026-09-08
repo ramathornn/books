@@ -320,6 +320,16 @@ export const forecastRowPatchSchema = z.object({
   linkedAssetId: z.string().nullable().optional(),
 })
 
+export const forecastTaxOverrideSchema = z.object({
+  year: z.number().int().min(2020).max(2100),
+  overrides: z.array(z.object({
+    field: z.enum(['income', 'incomeAdjustment', 'expenses', 'expenseAdjustment', 'totalTax']),
+    /** null clears the override. */
+    value: z.number().min(-1_000_000_000).max(1_000_000_000).nullable(),
+    note: z.string().max(500).nullable().optional(),
+  })).min(1).max(10),
+})
+
 export const forecastReorderSchema = z.object({
   section: forecastSection,
   categories: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })).optional(),

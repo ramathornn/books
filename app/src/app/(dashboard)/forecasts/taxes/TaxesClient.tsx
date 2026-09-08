@@ -23,6 +23,15 @@ interface Projection {
   breakdown: { label: string; amount: number; detail?: string }[]
   tiers: { jurisdiction: string; rate: number; from: number; to: number; amount: number; tax: number }[]
   notes: string[]
+  overrides?: { field: string; value: number; note?: string | null; updatedAt?: string }[]
+}
+
+const OVERRIDE_LABELS: Record<string, string> = {
+  income: 'Income',
+  incomeAdjustment: 'Income adjustment',
+  expenses: 'Expenses',
+  expenseAdjustment: 'Expenses adjustment',
+  totalTax: 'Total tax',
 }
 
 export default function TaxesClient() {
@@ -54,8 +63,23 @@ export default function TaxesClient() {
           <button key={y} type="button" onClick={() => setYear(y)} className={`rounded px-3 py-1 text-[13px] ${y === proj.year ? 'bg-[#0075DD] text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>{corporate ? `FY${String(y).slice(-2)}` : y}</button>
         ))}
       </div>
-      <Hero label={proj.label} value={fmtMoney(proj.totalTax)} badge={`${proj.effectiveRate.toFixed(1)}% effective`} badgeTone="muted"
+      <Hero label={proj.label} value={fmtMoney(proj.totalTax)} badge={proj.overrides?.length ? 'Manually adjusted' : `${proj.effectiveRate.toFixed(1)}% effective`} badgeTone="muted"
         sub={<>{proj.months.length ? `${proj.months[0]} to ${proj.months[proj.months.length - 1]}` : 'No months of this year in the workbook'} · {proj.coverage.included} of {proj.coverage.of} months in the workbook{proj.coverage.included < proj.coverage.of ? ' (extend the workbook in Settings for a full-year estimate)' : ''}</>} />
+
+      {!!proj.overrides?.length && (
+        <div className="mb-4 rounded-lg border border-[#FFC400] bg-[#FFFAE6] px-4 py-3">
+          <p className="mb-1 text-[13px] font-medium text-[#7A5B00]">Manual overrides applied to this year</p>
+          <ul className="space-y-0.5 text-[12px] text-[#7A5B00]">
+            {proj.overrides.map((o) => (
+              <li key={o.field}>
+                {OVERRIDE_LABELS[o.field] ?? o.field}: <span className="tabular-nums font-medium">{fmtMoney(o.value)}</span>
+                {o.note ? ` — ${o.note}` : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[11px] text-[#7A5B00]/70">Set over the API; the figures above already include them.</p>
+        </div>
+      )}
 
       <MetricGrid metrics={corporate ? [
         { label: 'Revenue', value: fmtMoney(proj.income) },

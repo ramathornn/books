@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { CellValue, FlowDayValue, Section } from '@/lib/forecasts/types'
-import { buildSuggestions, getFormulaDisplay, isFormula, replaceCurrentToken, resolveValue, shiftFormulaMonths, type RefSuggestion } from '@/lib/forecasts/formula'
+import { buildSuggestions, getFormulaDisplay, isFormula, parseTypedNumber, scenarioQualifier, replaceCurrentToken, resolveValue, shiftFormulaMonths, type RefSuggestion } from '@/lib/forecasts/formula'
 import { assignedDay, dayLabel, hasAssignedDay, rowFlowDay } from '@/lib/forecasts/flowDays'
 import { fmtMoney } from '@/lib/forecasts/computed'
 import { useForecast } from './ForecastProvider'
@@ -16,15 +16,6 @@ import SetDayModal from './SetDayModal'
 import { CalendarIcon, iconBtn } from './ui'
 
 export interface TableRow { key: string; label: string; isHeader?: boolean; currency?: string; linked?: boolean; linkedNote?: string }
-
-/** Typed money: tolerate thousands separators, currency symbols and (123) negatives. */
-export function parseTypedNumber(raw: string): number {
-  const t = raw.trim()
-  if (!t) return 0
-  const neg = /^\(.*\)$/.test(t)
-  const n = parseFloat((neg ? t.slice(1, -1) : t).replace(/[$\s,\u00A0'']/g, ''))
-  return Number.isFinite(n) ? (neg ? -n : n) : 0
-}
 
 interface CellProps {
   raw: CellValue
@@ -45,7 +36,7 @@ interface CellProps {
 }
 
 function EditableCell({ raw, resolved, section, dataKey, index, suggestions, months, readOnly, booksOwned = false, filling, dayBadge, globalSelectMode, onFillStart, onGlobalCellClick, onContextMenu }: CellProps) {
-  const { updateCell } = useForecast()
+  const { updateCell, data } = useForecast()
   const bar = useFormulaBar()
   const pathname = usePathname()
   const [editing, setEditing] = useState(false)
@@ -70,7 +61,14 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
     const resuming = isThisCell && !!sm
     const val = resuming ? sm!.formula : isFormula(raw) ? raw : String(raw || 0)
     setEditVal(val); setEditing(true); setAcIdx(0)
-    if (bar && !resuming) bar.startSelect(section, dataKey, index, val, pathname)
+    if (bar && !resuming) {
+      bar.startSelect(section, dataKey, index, isFormula(val) ? val : '', pathname, {
+        scenarioId: data.id,
+        scenarioName: data.name,
+        rowId: data.ids.rows[section]?.[dataKey] ?? null,
+        month: months[index] ?? null,
+      })
+    }
     setTimeout(() => inputRef.current?.select(), 0)
   }
 
@@ -113,9 +111,11 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
   }
 
   const hasFormula = isFormula(raw)
+  const credit = section === 'receivables' && resolved < 0
   return (
     <td
-      className={`relative border-b border-gray-100 p-0 ${filling ? 'bg-[#DEEBFF]' : booksOwned ? 'bg-[#F5F9FF]' : ''} ${globalSelectMode && !editing ? 'outline-dashed outline-1 outline-[#0075DD]/60 -outline-offset-1' : ''}`}
+      title={credit ? 'Credit balance — this account is overpaid' : undefined}
+      className={`relative border-b border-gray-100 p-0 ${filling ? 'bg-[#DEEBFF]' : credit ? 'bg-[#E3FCEF]' : booksOwned ? 'bg-[#F5F9FF]' : ''} ${globalSelectMode && !editing ? 'outline-dashed outline-1 outline-[#0075DD]/60 -outline-offset-1' : ''}`}
       data-key={dataKey}
       data-month-idx={index}
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, section, dataKey, index) : undefined}
@@ -124,11 +124,11 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
         data-cell
         onClick={!editing ? startEdit : undefined}
         title={booksOwned ? 'From Books (actual or scheduled). Edit on the Books side.' : readOnly ? 'Auto-calculated' : hasFormula && !editing ? getFormulaDisplay(raw) ?? undefined : undefined}
-        className={`group flex h-8 items-center justify-end gap-1 px-3 text-[13px] tabular-nums ${readOnly ? 'cursor-default text-gray-500' : 'cursor-text hover:bg-gray-50'} ${hasFormula ? 'text-[#0747A6]' : 'text-gray-900'} ${globalSelectMode && !editing ? 'cursor-crosshair' : ''}`}
+        className={`group flex h-8 items-center justify-end gap-1 px-3 text-[13px] tabular-nums ${readOnly ? 'cursor-default text-gray-500' : credit ? 'cursor-text' : 'cursor-text hover:bg-gray-50'} ${hasFormula ? 'text-[#0747A6]' : 'text-gray-900'} ${globalSelectMode && !editing ? 'cursor-crosshair' : ''}`}
       >
         {dayBadge && <span className="rounded bg-[#FFF4E0] px-1 text-[10px] font-medium text-[#8F5E00]" title={`Lands on ${dayBadge === 'EOM' ? 'last day of month' : 'day ' + dayBadge}`}>{dayBadge}</span>}
         {hasFormula && <span className="text-[10px] text-[#0747A6]/70">ƒ</span>}
-        <span className={resolved < 0 ? 'text-[#BF2600]' : ''}>{fmtMoney(resolved)}</span>
+        <span className={resolved < 0 ? (credit ? 'font-medium text-[#006644]' : 'text-[#BF2600]') : ''}>{fmtMoney(resolved)}</span>
       </div>
       {editing && (
         <div className="absolute inset-0 z-20">
@@ -181,7 +181,7 @@ interface Props {
 }
 
 export default function EditableTable({ section, columns, rows, totalRow = null, extraRows = [], preTotalRows = [], rowActions = null, hideTotals = false, onReorder = null, computedValues = null, editableComputedKeys = null, enableDayAssignment = false }: Props) {
-  const { data, computed, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
+  const { data, computed, scenarios, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
   const bar = useFormulaBar()
   const globalSelectMode = !!bar?.selectMode?.picking
   const { from, to } = computed
@@ -300,20 +300,24 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
     return absIdx >= min && absIdx <= max && absIdx !== fillState.sourceIdx
   }
 
-  const handleGlobalCellClick = useCallback((sec: Section, key: string, monthLabel: string | null) => { bar?.insertRef(sec, key, monthLabel) }, [bar])
+  const handleGlobalCellClick = useCallback((sec: Section, key: string, monthLabel: string | null) => {
+    const origin = bar?.selectMode
+    const foreign = !!origin && origin.originScenarioId !== data.id
+    bar?.insertRef(sec, key, monthLabel, foreign ? scenarioQualifier(data, scenarios) : null)
+  }, [bar, data, scenarios])
 
   const stickyTd = 'sticky left-0 z-10 bg-white border-b border-gray-100 px-4 text-[13px] text-gray-900 whitespace-nowrap'
   const numTd = 'border-b border-gray-100 px-3 text-right text-[13px] tabular-nums'
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null) }}>
+    <div className="max-h-[calc(100vh-160px)] overflow-auto rounded-lg border border-gray-200 bg-white" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null) }}>
       <table ref={tableRef} className="w-full min-w-[640px] border-collapse">
         <thead className="bg-gray-50">
           <tr>
-            <th className="sticky left-0 z-10 bg-gray-50 px-4 py-1.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500" style={{ minWidth: 160 }}>Category</th>
-            {rowActions && <th className="w-px bg-gray-50" />}
-            {columns.map((c) => <th key={c} className="px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">{c}</th>)}
-            {!hideTotals && <th className="px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Total</th>}
+            <th className="sticky left-0 top-0 z-30 bg-gray-50 px-4 py-1.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500" style={{ minWidth: 160 }}>Category</th>
+            {rowActions && <th className="sticky top-0 z-20 w-px bg-gray-50" />}
+            {columns.map((c) => <th key={c} className="sticky top-0 z-20 bg-gray-50 px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">{c}</th>)}
+            {!hideTotals && <th className="sticky top-0 z-20 bg-gray-50 px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Total</th>}
           </tr>
         </thead>
         <tbody>
