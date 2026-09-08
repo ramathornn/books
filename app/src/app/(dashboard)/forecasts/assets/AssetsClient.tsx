@@ -49,15 +49,6 @@ export default function AssetsClient() {
   const debtKeys = Object.keys(data.receivables)
   const input = 'h-9 rounded border border-gray-300 px-2 text-sm focus:border-[#0075DD] focus:outline-none'
 
-  // An asset can be linked from either side: its own linkedDebt, or a debt
-  // whose settings point back at it.
-  const linksOf = (name: string, a: Asset) => {
-    const out = new Set<string>()
-    if (a.linkedDebt) out.add(`${a.linkedDebt} (debt)`)
-    Object.entries(data.debtSettings).forEach(([d, s]) => { if (s?.linkedAsset === name) out.add(`${d} (debt)`) })
-    return [...out]
-  }
-
   const submit = async () => {
     if (!form.name.trim()) return
     if (await addAsset(form.name, parseFloat(form.value) || 0, form.type, form.linkedDebt || null)) {
@@ -114,7 +105,7 @@ export default function AssetsClient() {
               <div className="mb-2 flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
                 <span className="flex-1 truncate text-sm font-medium text-gray-900">{name}</span>
-                {linksOf(name, a).length > 0 && <LinkedBadge to={linksOf(name, a).join(' · ')} />}
+                {a.linkedDebt && <LinkedBadge to={`${a.linkedDebt} (debt)`} />}
                 {!readOnly && <RenameControl value={name} onRename={(n) => { renameAsset(name, n); toast.success(`Renamed to ${n}`) }} />}
                 {!readOnly && <button type="button" className={iconBtnDanger} title="Delete" onClick={() => setConfirmKey(name)}><TrashIcon /></button>}
               </div>

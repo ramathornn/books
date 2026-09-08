@@ -97,15 +97,14 @@ export default function DebtsClient() {
   const dS = data.debtSettings
   const isComputed = (k: string) => { const s = dS[k]; return !!s && (!!s.linkedExpense || s.interestRate > 0 || (s.type === 'loan' && !!(s.amortizationMonths || s.remainingMonths))) }
   const anyComputed = all.some(isComputed)
-  // What this debt is already wired to: its payment expense, its own linked
-  // asset, and any asset pointing back at it.
+  // Only this debt's own links, so clearing a field in the settings modal
+  // always clears the badge.
   const linksOf = (k: string) => {
     const s = dS[k]
-    const out = new Set<string>()
-    if (s?.linkedExpense) out.add(`${s.linkedExpense} (expense)`)
-    if (s?.linkedAsset) out.add(`${s.linkedAsset} (asset)`)
-    Object.entries(data.assets).forEach(([n, a]) => { if (a.linkedDebt === k) out.add(`${n} (asset)`) })
-    return [...out]
+    const out: string[] = []
+    if (s?.linkedExpense) out.push(`${s.linkedExpense} (expense)`)
+    if (s?.linkedAsset) out.push(`${s.linkedAsset} (asset)`)
+    return out
   }
   const editableComputed = Object.fromEntries(all.filter((k) => { const s = dS[k]; return !!s && s.interestRate > 0 && !s.linkedExpense && !(s.type === 'loan' && (s.amortizationMonths || s.remainingMonths)) }).map((k) => [k, true]))
 
