@@ -17,6 +17,15 @@ import { CalendarIcon, iconBtn } from './ui'
 
 export interface TableRow { key: string; label: string; isHeader?: boolean; currency?: string; linked?: boolean; linkedNote?: string }
 
+/** Typed money: tolerate thousands separators, currency symbols and (123) negatives. */
+export function parseTypedNumber(raw: string): number {
+  const t = raw.trim()
+  if (!t) return 0
+  const neg = /^\(.*\)$/.test(t)
+  const n = parseFloat((neg ? t.slice(1, -1) : t).replace(/[$\s,\u00A0'']/g, ''))
+  return Number.isFinite(n) ? (neg ? -n : n) : 0
+}
+
 interface CellProps {
   raw: CellValue
   resolved: number
@@ -69,7 +78,7 @@ function EditableCell({ raw, resolved, section, dataKey, index, suggestions, mon
     if (skipBlur.current) { skipBlur.current = false; return }
     if (bar?.preventBlurRef.current) { setEditing(false); return }
     const trimmed = editVal.trim()
-    const next: CellValue = isFormula(trimmed) ? trimmed : parseFloat(trimmed) || 0
+    const next: CellValue = isFormula(trimmed) ? trimmed : parseTypedNumber(trimmed)
     if (next !== raw) updateCell(section, dataKey, index, next)
     setEditing(false)
     if (isThisCell) bar?.cancelSelect()

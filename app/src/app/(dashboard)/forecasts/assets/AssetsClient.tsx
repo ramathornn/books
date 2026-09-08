@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import { AreaChart, CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
-import { AddButton, Card, CategoryBars, Hero, iconBtnDanger, MetricGrid, RenameControl, SectionTitle, TrashIcon } from '@/components/forecasts/ui'
+import { AddButton, Card, CategoryBars, Hero, iconBtnDanger, LinkedBadge, MetricGrid, RenameControl, SectionTitle, TrashIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import type { Asset } from '@/lib/forecasts/types'
 import { fmtMoney } from '@/lib/forecasts/computed'
@@ -49,6 +49,15 @@ export default function AssetsClient() {
   const debtKeys = Object.keys(data.receivables)
   const input = 'h-9 rounded border border-gray-300 px-2 text-sm focus:border-[#0075DD] focus:outline-none'
 
+  // An asset can be linked from either side: its own linkedDebt, or a debt
+  // whose settings point back at it.
+  const linksOf = (name: string, a: Asset) => {
+    const out = new Set<string>()
+    if (a.linkedDebt) out.add(`${a.linkedDebt} (debt)`)
+    Object.entries(data.debtSettings).forEach(([d, s]) => { if (s?.linkedAsset === name) out.add(`${d} (debt)`) })
+    return [...out]
+  }
+
   const submit = async () => {
     if (!form.name.trim()) return
     if (await addAsset(form.name, parseFloat(form.value) || 0, form.type, form.linkedDebt || null)) {
@@ -65,6 +74,21 @@ export default function AssetsClient() {
         { label: 'Total liabilities', value: fmtMoney(totalLiabilities), sub: `${debtKeys.filter((k) => ((debtBalances[k] || [])[todayIdx] || 0) > 0).length} active debts`, neg: totalLiabilities > 0 },
         { label: 'Net worth', value: fmtMoney(netWorth), sub: 'Assets − liabilities', neg: netWorth < 0 },
       ]} />
+
+      <Card title="Net worth over time" className="mb-6">
+        <AreaChart
+          data={netWorthData}
+          areas={[
+            { dataKey: 'Net worth', color: CHART_COLORS[0] },
+            { dataKey: 'Assets + cash', color: CHART_COLORS[1] },
+            { dataKey: 'Debts', color: CHART_COLORS[4] },
+          ]}
+          height={280}
+        />
+        <p className="mt-2 text-[12px] text-gray-500">
+          Assets are carried at their most recent valuation as of each month, plus projected cash, minus outstanding debt. Re-value an asset and the line steps at that date rather than rewriting history.
+        </p>
+      </Card>
 
       <div className="mb-3 flex items-start justify-between gap-3">
         <SectionTitle sub="Click a value to edit it · Link a debt to see equity">Assets</SectionTitle>
@@ -90,6 +114,7 @@ export default function AssetsClient() {
               <div className="mb-2 flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
                 <span className="flex-1 truncate text-sm font-medium text-gray-900">{name}</span>
+                {linksOf(name, a).length > 0 && <LinkedBadge to={linksOf(name, a).join(' · ')} />}
                 {!readOnly && <RenameControl value={name} onRename={(n) => { renameAsset(name, n); toast.success(`Renamed to ${n}`) }} />}
                 {!readOnly && <button type="button" className={iconBtnDanger} title="Delete" onClick={() => setConfirmKey(name)}><TrashIcon /></button>}
               </div>
@@ -114,21 +139,6 @@ export default function AssetsClient() {
         })}
         {!entries.length && !showAdd && <p className="text-sm text-gray-400">No assets yet.</p>}
       </div>
-
-      <Card title="Net worth over time" className="mb-4">
-        <AreaChart
-          data={netWorthData}
-          areas={[
-            { dataKey: 'Net worth', color: CHART_COLORS[0] },
-            { dataKey: 'Assets + cash', color: CHART_COLORS[1] },
-            { dataKey: 'Debts', color: CHART_COLORS[4] },
-          ]}
-          height={280}
-        />
-        <p className="mt-2 text-[12px] text-gray-500">
-          Assets are carried at their most recent valuation as of each month, plus projected cash, minus outstanding debt. Re-value an asset and the line steps at that date rather than rewriting history.
-        </p>
-      </Card>
 
       {byType.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">

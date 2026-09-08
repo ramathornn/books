@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import EditableTable, { type TableRow } from '@/components/forecasts/EditableTable'
 import { AreaChart, CHART_COLORS, DonutChart } from '@/components/forecasts/charts'
-import { AddButton, Card, CategoryBars, Hero, iconBtn, iconBtnDanger, InlineAdd, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
+import { AddButton, Card, CategoryBars, Hero, iconBtn, iconBtnDanger, InlineAdd, LinkedBadge, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { fmtMoney } from '@/lib/forecasts/computed'
 import { flatSetAside, monthlySetAside } from '@/lib/forecasts/setAside'
@@ -26,6 +26,12 @@ export default function ExpensesClient() {
     () => (showSetAside ? (flatMethod ? flatSetAside : monthlySetAside)(viewMonths, viewExpenses) : []),
     [showSetAside, flatMethod, viewMonths, viewExpenses]
   )
+  // Debts that draw their monthly payment from an expense row.
+  const debtsByExpense = useMemo(() => {
+    const m: Record<string, string[]> = {}
+    Object.entries(data.debtSettings).forEach(([debt, s]) => { if (s?.linkedExpense) (m[s.linkedExpense] ||= []).push(debt) })
+    return m
+  }, [data.debtSettings])
   const rows: TableRow[] = Object.keys(data.expenses).map((k) => ({ key: k, label: k.startsWith('_') ? k.slice(1) : k, isHeader: k.startsWith('_'), linked: !!data.linked.expenses?.[k], linkedNote: data.linked.expenses?.[k]?.note }))
   const confirmIsCat = !!confirmKey?.startsWith('_')
 
@@ -58,8 +64,11 @@ export default function ExpensesClient() {
             : 'Personal tax to hold back on the dividend withdrawal that funds this spending. To have $1 left to spend you must withdraw more than $1, so this is the tax on the grossed-up draw — not a flat share of expenses. Auto mode walks the brackets, so it rises through the year and resets in January. Change it in Settings → Salary method.',
         }] : []}
         onReorder={readOnly ? null : (d, t, p) => reorderRow('expenses', d, t, p)}
-        rowActions={readOnly ? null : (row) => row.linked ? null : (
+        rowActions={readOnly ? null : (row) => row.linked ? (
+          debtsByExpense[row.key]?.length ? <LinkedBadge to={`${debtsByExpense[row.key].join(' · ')} (debt)`} /> : null
+        ) : (
           <span className="inline-flex items-center gap-0.5">
+            {!!debtsByExpense[row.key]?.length && <LinkedBadge to={`${debtsByExpense[row.key].join(' · ')} (debt)`} />}
             {row.isHeader && <button type="button" className="whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-[#0747A6] hover:bg-[#DEEBFF]" onClick={() => { setAddItemCat(row.label); setShowAddCat(false) }}>+ item</button>}
             <RenameControl value={row.label} onRename={(n) => { renameRow('expenses', row.key, row.isHeader ? `_${n}` : n); toast.success(`Renamed to ${n}`) }} />
             {!row.isHeader && <button type="button" className={iconBtn} title={data._hidden.expenses?.[row.key] ? 'Show in timeline' : 'Hide from timeline'} onClick={() => toggleRowVisibility('expenses', row.key)}><EyeIcon off={!!data._hidden.expenses?.[row.key]} /></button>}

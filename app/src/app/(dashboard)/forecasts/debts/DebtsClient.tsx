@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import EditableTable from '@/components/forecasts/EditableTable'
 import { AreaChart, CHART_COLORS } from '@/components/forecasts/charts'
-import { AddButton, Card, Hero, iconBtn, iconBtnDanger, InlineAdd, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
+import { AddButton, Card, Hero, iconBtn, iconBtnDanger, InlineAdd, LinkedBadge, RenameControl, SectionTitle, TrashIcon, EyeIcon } from '@/components/forecasts/ui'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Modal from '@/components/ui/Modal'
 import type { DebtSettings } from '@/lib/forecasts/types'
@@ -97,6 +97,16 @@ export default function DebtsClient() {
   const dS = data.debtSettings
   const isComputed = (k: string) => { const s = dS[k]; return !!s && (!!s.linkedExpense || s.interestRate > 0 || (s.type === 'loan' && !!(s.amortizationMonths || s.remainingMonths))) }
   const anyComputed = all.some(isComputed)
+  // What this debt is already wired to: its payment expense, its own linked
+  // asset, and any asset pointing back at it.
+  const linksOf = (k: string) => {
+    const s = dS[k]
+    const out = new Set<string>()
+    if (s?.linkedExpense) out.add(`${s.linkedExpense} (expense)`)
+    if (s?.linkedAsset) out.add(`${s.linkedAsset} (asset)`)
+    Object.entries(data.assets).forEach(([n, a]) => { if (a.linkedDebt === k) out.add(`${n} (asset)`) })
+    return [...out]
+  }
   const editableComputed = Object.fromEntries(all.filter((k) => { const s = dS[k]; return !!s && s.interestRate > 0 && !s.linkedExpense && !(s.type === 'loan' && (s.amortizationMonths || s.remainingMonths)) }).map((k) => [k, true]))
 
   return (
@@ -124,8 +134,9 @@ export default function DebtsClient() {
         onReorder={readOnly ? null : (d, t, p) => reorderRow('receivables', d, t, p)}
         rowActions={readOnly ? null : (row) => (
           <span className="inline-flex items-center gap-0.5">
+            {linksOf(row.key).length > 0 && <LinkedBadge to={linksOf(row.key).join(' · ')} />}
             <RenameControl value={row.key} onRename={(n) => { renameRow('receivables', row.key, n); toast.success(`Renamed to ${n}`) }} />
-            <button type="button" className={`${iconBtn} ${dS[row.key]?.linkedExpense ? 'text-[#0075DD]' : ''}`} title="Debt settings" onClick={() => setSettingsKey(row.key)}>
+            <button type="button" className={iconBtn} title="Debt settings" onClick={() => setSettingsKey(row.key)}>
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.3 4.3a1.7 1.7 0 013.4 0l.1.6a1.7 1.7 0 002.5 1l.5-.3a1.7 1.7 0 012.4 2.4l-.3.5a1.7 1.7 0 001 2.5l.6.1a1.7 1.7 0 010 3.4l-.6.1a1.7 1.7 0 00-1 2.5l.3.5a1.7 1.7 0 01-2.4 2.4l-.5-.3a1.7 1.7 0 00-2.5 1l-.1.6a1.7 1.7 0 01-3.4 0l-.1-.6a1.7 1.7 0 00-2.5-1l-.5.3a1.7 1.7 0 01-2.4-2.4l.3-.5a1.7 1.7 0 00-1-2.5l-.6-.1a1.7 1.7 0 010-3.4l.6-.1a1.7 1.7 0 001-2.5l-.3-.5a1.7 1.7 0 012.4-2.4l.5.3a1.7 1.7 0 002.5-1z" /><circle cx="12" cy="12" r="3" /></svg>
             </button>
             <button type="button" className={iconBtn} title="Hide from totals and charts" onClick={() => { toggleRowVisibility('receivables', row.key); toast.success(`Hidden ${row.key}`) }}><EyeIcon /></button>

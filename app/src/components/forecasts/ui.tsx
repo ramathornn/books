@@ -142,6 +142,19 @@ export function EyeIcon({ off }: { off?: boolean }) {
     : <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" /><circle cx="12" cy="12" r="3" /></svg>
 }
 
+export function LinkIcon() {
+  return <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 13.5a4 4 0 005.7 0l2.8-2.8a4 4 0 00-5.7-5.7l-1.4 1.4M13.5 10.5a4 4 0 00-5.7 0l-2.8 2.8a4 4 0 005.7 5.7l1.4-1.4" /></svg>
+}
+
+/** Green chain shown on a row that is already linked to something elsewhere. */
+export function LinkedBadge({ to }: { to: string }) {
+  return (
+    <span className="inline-flex items-center p-1 text-[#038A06]" title={`Linked to ${to}`} aria-label={`Linked to ${to}`}>
+      <LinkIcon />
+    </span>
+  )
+}
+
 /** Rename-in-place row action: pencil → input with save/cancel. */
 export function RenameControl({ value, onRename }: { value: string; onRename: (next: string) => void }) {
   const [editing, setEditing] = useState(false)
