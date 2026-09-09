@@ -77,8 +77,8 @@ function DebtSettingsModal({ debtKey, onClose }: { debtKey: string; onClose: () 
 }
 
 export default function DebtsClient() {
-  const { data, computed, addReceivable, removeRow, renameRow, toggleRowVisibility, reorderRow, readOnly } = useForecast()
-  const { viewMonths, from, todayIdx, debtBalances } = computed
+  const { data, computed, asOfIndex, addReceivable, removeRow, renameRow, toggleRowVisibility, reorderRow, readOnly } = useForecast()
+  const { viewMonths, from, debtBalances } = computed
   const [showAdd, setShowAdd] = useState(false)
   const [confirmKey, setConfirmKey] = useState<string | null>(null)
   const [settingsKey, setSettingsKey] = useState<string | null>(null)
@@ -87,9 +87,10 @@ export default function DebtsClient() {
   const hidden = data._hidden.receivables ?? {}
   const all = Object.keys(data.receivables)
   const visible = all.filter((n) => !hidden[n])
-  const current = (n: string) => Math.max(0, (debtBalances[n] || [])[todayIdx] || 0)
-  const peakOf = (n: string) => Math.max(0, ...(debtBalances[n] || []).slice(0, todayIdx + 1))
+  const current = (n: string) => (debtBalances[n] || [])[asOfIndex] || 0
+  const peakOf = (n: string) => Math.max(0, ...(debtBalances[n] || []).slice(0, asOfIndex + 1))
   const totalOutstanding = visible.reduce((s, n) => s + current(n), 0)
+  const asOfLabel = data.months[asOfIndex] ?? ''
   const totalPeak = visible.reduce((s, n) => s + peakOf(n), 0)
   const paidPct = totalPeak > 0 ? ((totalPeak - totalOutstanding) / totalPeak) * 100 : 0
   const trajectory = viewMonths.map((month, i) => { const row: Record<string, number | string> = { month }; visible.forEach((n) => { row[n] = (debtBalances[n] || [])[from + i] || 0 }); return row })
@@ -119,7 +120,7 @@ export default function DebtsClient() {
   return (
     <div>
       <Hero label="Total outstanding" value={fmtMoney(totalOutstanding)} badge={`${paidPct.toFixed(1)}% paid`} badgeTone="green"
-        sub={<>{visible.filter((n) => current(n) > 0).length} active accounts · Peak {fmtMoney(totalPeak)}</>} />
+        sub={<>{visible.filter((n) => current(n) > 0).length} active accounts · Peak {fmtMoney(totalPeak)} · Balance at end of {asOfLabel}</>} />
 
       <Card className="mb-6" title="Paydown trajectories">
         {visible.length ? <AreaChart data={trajectory} areas={visible.map((n, i) => ({ dataKey: n, color: CHART_COLORS[i % CHART_COLORS.length] }))} height={300} /> : <p className="text-sm text-gray-400">Add a debt account to see its trajectory.</p>}

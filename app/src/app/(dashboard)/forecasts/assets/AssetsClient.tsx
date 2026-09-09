@@ -32,8 +32,13 @@ function valuationStatus(a: Asset): { label: string; stale: boolean } {
 }
 
 export default function AssetsClient() {
-  const { data, computed, addAsset, updateAsset, removeAsset, renameAsset, readOnly } = useForecast()
-  const { netWorth, totalAssetValue, totalLiabilities, assetsByType, todayIdx, debtBalances, viewMonths, netWorthSeries, liabilitySeries, from } = computed
+  const { data, computed, asOfIndex, addAsset, updateAsset, removeAsset, renameAsset, readOnly } = useForecast()
+  const { assetsByType, debtBalances, viewMonths, netWorthSeries, assetValueSeries, liabilitySeries, from } = computed
+  // Headline figures are reported at the selected month, not just today.
+  const netWorth = netWorthSeries[asOfIndex] ?? 0
+  const totalAssetValue = assetValueSeries[asOfIndex] ?? 0
+  const totalLiabilities = liabilitySeries[asOfIndex] ?? 0
+  const asOfLabel = data.months[asOfIndex] ?? ''
   const [showAdd, setShowAdd] = useState(false)
   // Net worth = (assets + cash) − debts, so the gross side is just net + debts.
   const netWorthData = useMemo(() => viewMonths.map((month, i) => {
@@ -59,10 +64,10 @@ export default function AssetsClient() {
 
   return (
     <div>
-      <Hero label="Total asset value" value={fmtMoney(totalAssetValue)} badge={`Net worth ${fmtMoney(netWorth)}`} badgeTone={netWorth >= 0 ? 'green' : 'red'} sub={<>{entries.length} assets · {fmtMoney(totalLiabilities)} in liabilities</>} />
+      <Hero label="Total asset value" value={fmtMoney(totalAssetValue)} badge={`Net worth ${fmtMoney(netWorth)}`} badgeTone={netWorth >= 0 ? 'green' : 'red'} sub={<>{entries.length} assets · {fmtMoney(totalLiabilities)} in liabilities · As at end of {asOfLabel}</>} />
       <MetricGrid metrics={[
         { label: 'Total assets', value: fmtMoney(totalAssetValue), sub: `${entries.length} assets` },
-        { label: 'Total liabilities', value: fmtMoney(totalLiabilities), sub: `${debtKeys.filter((k) => ((debtBalances[k] || [])[todayIdx] || 0) > 0).length} active debts`, neg: totalLiabilities > 0 },
+        { label: 'Total liabilities', value: fmtMoney(totalLiabilities), sub: `${debtKeys.filter((k) => ((debtBalances[k] || [])[asOfIndex] || 0) > 0).length} active debts`, neg: totalLiabilities > 0 },
         { label: 'Net worth', value: fmtMoney(netWorth), sub: 'Assets − liabilities', neg: netWorth < 0 },
       ]} />
 
@@ -98,7 +103,7 @@ export default function AssetsClient() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {entries.map(([name, a], i) => {
-          const linkedBalance = a.linkedDebt ? Math.max(0, (debtBalances[a.linkedDebt] || [])[todayIdx] || 0) : 0
+          const linkedBalance = a.linkedDebt ? Math.max(0, (debtBalances[a.linkedDebt] || [])[asOfIndex] || 0) : 0
           const equity = a.value - linkedBalance
           return (
             <div key={name} className="rounded-lg border border-gray-200 bg-white p-4">

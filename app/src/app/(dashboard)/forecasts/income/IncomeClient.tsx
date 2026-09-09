@@ -12,9 +12,13 @@ import { resolveValue } from '@/lib/forecasts/formula'
 import { toast } from '@/lib/toast'
 
 export default function IncomeClient() {
-  const { data, computed, rates, addRevenueItem, removeRow, renameRow, setIncomeCurrency, reorderRow, toggleRowVisibility, importBooksRevenue, readOnly } = useForecast()
+  const { data, computed, asOfIndex, rates, addRevenueItem, removeRow, renameRow, setIncomeCurrency, reorderRow, toggleRowVisibility, importBooksRevenue, readOnly } = useForecast()
   const [importing, setImporting] = useState(false)
-  const { viewMonths, viewIncome, sumIncome, avgIncome, growth, from, to } = computed
+  const { viewMonths, viewIncome, avgIncome, growth, from, to, totalIncome } = computed
+  // Running total through the selected month.
+  const asOfTo = Math.max(from, asOfIndex)
+  const sumIncome = totalIncome.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
+  const asOfLabel = data.months[asOfIndex] ?? ''
   const lastGrowth = growth[growth.length - 1] ?? 0
   const [showAdd, setShowAdd] = useState(false)
   const [newCurrency, setNewCurrency] = useState('CAD')
@@ -29,7 +33,7 @@ export default function IncomeClient() {
   return (
     <div>
       <Hero label="Total income (CAD)" value={fmtMoney(sumIncome)} badge={`${lastGrowth >= 0 ? '▲' : '▼'} ${lastGrowth.toFixed(1)}% MoM`} badgeTone={lastGrowth >= 0 ? 'green' : 'red'}
-        sub={<>Avg {fmtMoney(Math.round(avgIncome))}/mo <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px]">USD {rates.USD.toFixed(3)}</span> <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px]">EUR {rates.EUR.toFixed(3)}</span></>} />
+        sub={<>{data.months[from]} through {asOfLabel} · Avg {fmtMoney(Math.round(avgIncome))}/mo <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px]">USD {rates.USD.toFixed(3)}</span> <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px]">EUR {rates.EUR.toFixed(3)}</span></>} />
 
       <Card className="mb-6"><BarChart data={stacked} bars={keys.map((k, i) => ({ dataKey: k, color: CHART_COLORS[i % CHART_COLORS.length] }))} stacked showLegend height={300} /></Card>
 

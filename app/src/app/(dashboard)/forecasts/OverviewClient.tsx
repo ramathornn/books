@@ -8,8 +8,19 @@ import { computeEndingBalance, fmtMoney } from '@/lib/forecasts/computed'
 import type { ForecastData } from '@/lib/forecasts/types'
 
 export default function OverviewClient() {
-  const { data, computed, scenarios, rates } = useForecast()
-  const { viewMonths, viewNet, viewBalance, sumIncome, sumExpenses, sumNet, avgIncome, avgExpenses, lastBalance, savingsRate, totalDebt, categoryTotals, ratio, from, to, todayIdx, netWorth, totalAssetValue, debtBalances } = computed
+  const { data, computed, asOfIndex, scenarios, rates } = useForecast()
+  const { viewMonths, viewNet, viewBalance, avgIncome, avgExpenses, categoryTotals, ratio, from, to, todayIdx, debtBalances, totalIncome, totalExpenses, endingBalance, netWorthSeries, assetValueSeries, liabilitySeries } = computed
+  // Flows accumulate through the selected month; balances are read at it.
+  const asOfTo = Math.max(from, asOfIndex)
+  const sumIncome = totalIncome.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
+  const sumExpenses = totalExpenses.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
+  const sumNet = sumIncome - sumExpenses
+  const savingsRate = sumIncome > 0 ? (sumNet / sumIncome) * 100 : 0
+  const lastBalance = endingBalance[asOfIndex] ?? 0
+  const netWorth = netWorthSeries[asOfIndex] ?? 0
+  const totalAssetValue = assetValueSeries[asOfIndex] ?? 0
+  const totalDebt = liabilitySeries[asOfIndex] ?? 0
+  const asOfLabel = data.months[asOfIndex] ?? ''
   const [hiddenRecv, setHiddenRecv] = useState<Record<string, boolean>>({})
   const [debtsVisible, setDebtsVisible] = useState(true)
   const [other, setOther] = useState<ForecastData | null>(null)
@@ -39,7 +50,7 @@ export default function OverviewClient() {
   return (
     <div>
       <Hero label="Net position" value={fmtMoney(sumNet)} negative={sumNet < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${savingsRate.toFixed(1)}%`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
-        sub={<>{fmtMoney(sumIncome)} income − {fmtMoney(sumExpenses)} expenses · {viewMonths[0]} to {viewMonths[viewMonths.length - 1]}</>} />
+        sub={<>{fmtMoney(sumIncome)} income − {fmtMoney(sumExpenses)} expenses · {data.months[from]} through {asOfLabel}</>} />
 
       <Card className="mb-6">
         <AreaChart data={areaData} height={320} areas={[{ dataKey: 'Running Balance', color: CHART_COLORS[0] }, ...chartRecv.map((r) => ({ dataKey: r.name, color: r.color }))]} />

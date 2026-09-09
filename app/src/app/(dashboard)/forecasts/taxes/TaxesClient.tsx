@@ -63,7 +63,7 @@ export default function TaxesClient() {
           <button key={y} type="button" onClick={() => setYear(y)} className={`rounded px-3 py-1 text-[13px] ${y === proj.year ? 'bg-[#0075DD] text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>{corporate ? `FY${String(y).slice(-2)}` : y}</button>
         ))}
       </div>
-      <Hero label={proj.label} value={fmtMoney(proj.totalTax)} badge={proj.overrides?.length ? 'Manually adjusted' : `${proj.effectiveRate.toFixed(1)}% effective`} badgeTone="muted"
+      <Hero label={proj.label} value={fmtMoney(proj.totalTax)} badge={proj.overrides?.length ? 'Manually adjusted' : `${proj.effectiveRate.toFixed(1)}% effective`} badgeTone="muted" asOf={false}
         sub={<>{proj.months.length ? `${proj.months[0]} to ${proj.months[proj.months.length - 1]}` : 'No months of this year in the workbook'} · {proj.coverage.included} of {proj.coverage.of} months in the workbook{proj.coverage.included < proj.coverage.of ? ' (extend the workbook in Settings for a full-year estimate)' : ''}</>} />
 
       {!!proj.overrides?.length && (

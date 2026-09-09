@@ -11,8 +11,13 @@ import { flatSetAside, monthlySetAside } from '@/lib/forecasts/setAside'
 import { toast } from '@/lib/toast'
 
 export default function ExpensesClient() {
-  const { data, computed, addExpenseCategory, addExpenseItem, removeRow, renameRow, reorderRow, toggleRowVisibility, readOnly } = useForecast()
-  const { viewMonths, viewExpenses, sumExpenses, avgExpenses, sumNet, categoryTotals } = computed
+  const { data, computed, asOfIndex, addExpenseCategory, addExpenseItem, removeRow, renameRow, reorderRow, toggleRowVisibility, readOnly } = useForecast()
+  const { viewMonths, viewExpenses, avgExpenses, categoryTotals, totalExpenses, totalIncome, from } = computed
+  // Running totals through the selected month.
+  const asOfTo = Math.max(from, asOfIndex)
+  const sumExpenses = totalExpenses.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
+  const sumNet = totalIncome.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0) - sumExpenses
+  const asOfLabel = data.months[asOfIndex] ?? ''
   const [showAddCat, setShowAddCat] = useState(false)
   const [addItemCat, setAddItemCat] = useState<string | null>(null)
   const [confirmKey, setConfirmKey] = useState<string | null>(null)
@@ -38,7 +43,7 @@ export default function ExpensesClient() {
   return (
     <div>
       <Hero label="Total expenses" value={fmtMoney(sumExpenses)} negative badge={`Avg ${fmtMoney(Math.round(avgExpenses))}/mo`}
-        sub={<>Net savings: <span className={sumNet >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}>{fmtMoney(sumNet)}</span></>} />
+        sub={<>Net savings: <span className={sumNet >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}>{fmtMoney(sumNet)}</span> · {data.months[from]} through {asOfLabel}</>} />
 
       <Card className="mb-6"><AreaChart data={viewMonths.map((month, i) => ({ month, Expenses: viewExpenses[i] }))} areas={[{ dataKey: 'Expenses', color: CHART_COLORS[4] }]} height={300} /></Card>
 

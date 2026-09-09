@@ -29,6 +29,9 @@ interface ForecastStore {
   updateCellIn: (scenarioId: string, rowId: string, index: number, value: CellValue) => Promise<boolean>
   updateCells: (section: Section, key: string, entries: { index: number; value: CellValue }[]) => void
   setViewRange: (from: number, to: number) => void
+  /** Month index the headline figures are reported at. Defaults to the end of the view range. */
+  asOfIndex: number
+  setAsOfIndex: (index: number) => void
   addRevenueItem: (name: string, currency?: string) => Promise<boolean>
   addExpenseCategory: (name: string) => Promise<boolean>
   addExpenseItem: (name: string, categoryName: string | null) => Promise<boolean>
@@ -110,6 +113,18 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     for (const [ccy, v] of Object.entries(data.rateOverrides || {})) r[ccy] = v
     return r
   }, [initialRates, data.rateOverrides])
+
+  // "As of" month for the headline figures. Follows the end of the view range
+  // until the user picks a month, and resets when the range or scenario moves.
+  const [asOfIndex, setAsOfIndexState] = useState<number | null>(null)
+  const effectiveAsOf = Math.min(asOfIndex ?? data.viewTo, data.months.length - 1)
+  const viewToKey = `${data.id}:${data.viewTo}`
+  const viewToKeyRef = useRef(viewToKey)
+  if (viewToKeyRef.current !== viewToKey) {
+    viewToKeyRef.current = viewToKey
+    if (asOfIndex !== null) setAsOfIndexState(null)
+  }
+  const setAsOfIndex = useCallback((index: number) => setAsOfIndexState(index), [])
 
   // Sibling scenarios, so formulas can reference across the business/personal
   // divide. Fetched once per scenario; failures just leave the map empty.
@@ -691,6 +706,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
 
   const value = useMemo<ForecastStore>(() => ({
     data: scopedData, scenarios, rates, computed, readOnly, saving, updateCellIn,
+    asOfIndex: effectiveAsOf, setAsOfIndex,
     switchScenario, refresh,
     updateCell, updateCells, setViewRange,
     addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable,
@@ -699,7 +715,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
     isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, setAsOfIndex, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

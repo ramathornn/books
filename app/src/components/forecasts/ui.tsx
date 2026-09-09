@@ -5,14 +5,17 @@
 
 import { useState } from 'react'
 import { fmtMoney } from '@/lib/forecasts/computed'
+import { useForecast } from './ForecastProvider'
 
-export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub }: {
+export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, asOf = true }: {
   label: string
   value: string
   negative?: boolean
   badge?: React.ReactNode
   badgeTone?: 'green' | 'red' | 'muted'
   sub?: React.ReactNode
+  /** Show the "as of" month picker that drives this figure. */
+  asOf?: boolean
 }) {
   const tone = badgeTone === 'green' ? 'bg-[#E3FCEF] text-[#006644]' : badgeTone === 'red' ? 'bg-[#FFEBE6] text-[#BF2600]' : 'bg-gray-100 text-gray-600'
   return (
@@ -21,9 +24,31 @@ export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub }
       <div className="mt-1 flex flex-wrap items-center gap-3">
         <h1 className={`text-3xl font-semibold tabular-nums ${negative ? 'text-[#BF2600]' : 'text-gray-900'}`}>{value}</h1>
         {badge && <span className={`rounded-full px-2.5 py-1 text-[12px] font-medium ${tone}`}>{badge}</span>}
+        {asOf && <AsOfSelect />}
       </div>
       {sub && <p className="mt-1 text-sm text-gray-500">{sub}</p>}
     </div>
+  )
+}
+
+/** Month picker driving the headline figure. Defaults to the end of the view range. */
+export function AsOfSelect() {
+  const { data, computed, asOfIndex, setAsOfIndex } = useForecast()
+  if (data.months.length < 2) return null
+  return (
+    <label className="inline-flex items-center gap-1.5 text-[12px] text-gray-500">
+      As of
+      <select
+        value={asOfIndex}
+        onChange={(e) => setAsOfIndex(parseInt(e.target.value, 10))}
+        title="Report the figure above as of the end of this month"
+        className="h-7 rounded border border-gray-300 bg-white px-1.5 text-[12px] text-gray-700 focus:border-[#0075DD] focus:outline-none"
+      >
+        {data.months.map((m, i) => (
+          <option key={m} value={i}>{m}{i === computed.todayIdx ? ' (today)' : ''}</option>
+        ))}
+      </select>
+    </label>
   )
 }
 
