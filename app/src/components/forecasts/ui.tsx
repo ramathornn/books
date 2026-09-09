@@ -3,8 +3,9 @@
 // Small presentational pieces shared by the Forecasts pages, styled to match
 // the Books dashboard (white cards, gray-200 borders, #001B40 headings).
 
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { fmtMoney } from '@/lib/forecasts/computed'
+import { parseMonthLabel } from '@/lib/forecasts/months'
 import { useForecast } from './ForecastProvider'
 
 export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, asOf = true }: {
@@ -32,23 +33,97 @@ export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, 
 }
 
 /** Month picker driving the headline figure. Defaults to the end of the view range. */
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 export function AsOfSelect() {
   const { data, computed, asOfIndex, setAsOfIndex } = useForecast()
-  if (data.months.length < 2) return null
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // label -> index, plus the {year, month} of every month in the workbook.
+  const parsed = useMemo(
+    () => data.months.map((m, i) => ({ i, label: m, ...(parseMonthLabel(m) ?? { year: 0, month: 0 }) })),
+    [data.months]
+  )
+  const selected = parsed[asOfIndex]
+  const years = useMemo(() => [...new Set(parsed.map((p) => p.year))].sort((a, b) => a - b), [parsed])
+  // The grid opens on the selected month's year; no effect needed.
+  const [year, setYear] = useState(selected?.year ?? years[0])
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  if (data.months.length < 2 || !selected) return null
+  const yearIdx = years.indexOf(year)
+  const pick = (index: number) => { setAsOfIndex(index); setOpen(false) }
+
   return (
-    <label className="inline-flex items-center gap-1.5 text-[12px] text-gray-500">
-      As of
-      <select
-        value={asOfIndex}
-        onChange={(e) => setAsOfIndex(parseInt(e.target.value, 10))}
+    <div ref={wrapRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => { if (!open && selected) setYear(selected.year); setOpen((o) => !o) }}
         title="Report the figure above as of the end of this month"
-        className="h-7 rounded border border-gray-300 bg-white px-1.5 text-[12px] text-gray-700 focus:border-[#0075DD] focus:outline-none"
+        className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[12px] transition-colors ${open ? 'border-[#0075DD] bg-[#DEEBFF] text-[#0747A6]' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}
       >
-        {data.months.map((m, i) => (
-          <option key={m} value={i}>{m}{i === computed.todayIdx ? ' (today)' : ''}</option>
-        ))}
-      </select>
-    </label>
+        <span className="text-gray-400">As of</span>
+        <span className="font-medium">{selected.label}</span>
+        <svg className="h-3 w-3 opacity-60" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" /></svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-[248px] rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
+          <div className="mb-1.5 flex items-center justify-between">
+            <button type="button" disabled={yearIdx <= 0} onClick={() => setYear(years[yearIdx - 1])}
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent">
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 6l-6 6 6 6" /></svg>
+            </button>
+            <span className="text-[13px] font-semibold text-gray-900">{year}</span>
+            <button type="button" disabled={yearIdx >= years.length - 1} onClick={() => setYear(years[yearIdx + 1])}
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent">
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /></svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1">
+            {MONTH_ABBR.map((abbr, m) => {
+              const cell = parsed.find((p) => p.year === year && p.month === m)
+              const isSelected = !!cell && cell.i === asOfIndex
+              const isToday = !!cell && cell.i === computed.todayIdx
+              return (
+                <button
+                  key={abbr}
+                  type="button"
+                  disabled={!cell}
+                  onClick={() => cell && pick(cell.i)}
+                  title={cell ? undefined : 'Outside the workbook — extend it in Settings'}
+                  className={`relative h-8 rounded-md text-[12px] font-medium transition-colors ${
+                    isSelected ? 'bg-[#0075DD] text-white'
+                      : !cell ? 'cursor-not-allowed text-gray-300'
+                      : 'text-gray-700 hover:bg-[#DEEBFF] hover:text-[#0747A6]'
+                  }`}
+                >
+                  {abbr}
+                  {isToday && !isSelected && <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[#0075DD]" />}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="mt-2 flex gap-1 border-t border-gray-100 pt-2">
+            <button type="button" onClick={() => pick(computed.todayIdx)}
+              className="flex-1 rounded px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100">Today</button>
+            <button type="button" onClick={() => pick(data.viewTo)}
+              className="flex-1 rounded px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100">End of range</button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
