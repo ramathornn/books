@@ -330,6 +330,16 @@ export const forecastTaxOverrideSchema = z.object({
   })).min(1).max(10),
 })
 
+export const forecastTaxScenarioSchema = z.object({
+  year: z.number().int().min(2020).max(2100),
+  name: z.string().trim().min(1).max(80).optional(),
+  lines: z.array(z.object({
+    type: z.enum(['employment', 'selfEmployment', 'interest', 'other', 'eligibleDividend', 'nonEligibleDividend', 'capitalGain', 'rrspDeduction', 'otherDeduction', 'revenue', 'expense']),
+    label: z.string().max(80).default(''),
+    amount: z.number().min(-1_000_000_000).max(1_000_000_000),
+  })).max(50).optional(),
+})
+
 export const forecastReorderSchema = z.object({
   section: forecastSection,
   categories: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })).optional(),

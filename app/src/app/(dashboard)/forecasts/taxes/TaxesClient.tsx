@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import { Card, Hero, MetricGrid } from '@/components/forecasts/ui'
+import TaxWhatIf from '@/components/forecasts/TaxWhatIf'
 import TaxTiers from '@/components/forecasts/TaxTiers'
 import { fmtMoney } from '@/lib/forecasts/computed'
 
@@ -94,6 +95,8 @@ export default function TaxesClient() {
         { label: 'Effective rate', value: `${proj.effectiveRate.toFixed(1)}%` },
         { label: 'Set aside monthly', value: fmtMoney(proj.monthlySetAside) },
       ]} />
+      <TaxWhatIf year={proj.year} province={proj.province} projectedTax={proj.totalTax} />
+
 
 {showCharts && (
       <Card title="Tax by bracket" className="mb-4">

@@ -1564,11 +1564,33 @@ model ForecastScenario {
   bankBalances  ForecastBankBalance[]
   rateOverrides ForecastRateOverride[]
   taxOverrides  ForecastTaxOverride[]
+  taxScenarios  ForecastTaxScenario[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("forecast_scenarios")
+}
+
+// A saved "what if I earned this instead" tax calculation. Lines are entered by
+// hand (or by an agent) rather than derived from the workbook, so they are kept
+// as a JSON array: [{ type, label, amount }].
+model ForecastTaxScenario {
+  id         String           @id @default(uuid())
+  scenarioId String           @map("scenario_id")
+  scenario   ForecastScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  /**
+   * Personal: calendar year. Business: the year the fiscal year ends in.
+   */
+  year       Int
+  name       String
+  lines      Json             @default("[]")
+  sortOrder  Int              @default(0) @map("sort_order")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  @@index([scenarioId, year])
+  @@map("forecast_tax_scenarios")
 }
 
 // Manual corrections to a scenario's projected tax bill, set in the UI or by an

@@ -8,31 +8,8 @@ import { getRateTable as t2Rates } from '@/lib/tax/t2/rates'
 import type { Computed } from './computed'
 import type { ForecastData } from './types'
 import { parseMonthLabel } from './months'
+import { bpaFor, bracketTax, r0 } from './taxMath'
 
-const r0 = (n: number) => Math.round(n)
-
-function bracketTax(income: number, brackets: { rate: number; upTo: number }[]): { tax: number; lines: { rate: number; from: number; to: number; amount: number; tax: number }[] } {
-  let prev = 0
-  let tax = 0
-  const lines: { rate: number; from: number; to: number; amount: number; tax: number }[] = []
-  for (const b of brackets) {
-    if (income <= prev) break
-    const slice = Math.min(income, b.upTo) - prev
-    const t = slice * b.rate
-    lines.push({ rate: b.rate, from: prev, to: b.upTo, amount: r0(slice), tax: r0(t) })
-    tax += t
-    prev = b.upTo
-  }
-  return { tax, lines }
-}
-
-function bpaFor(income: number, bpa: { max: number; min: number; phaseOut: { start: number; end: number } | null }): number {
-  if (!bpa.phaseOut) return bpa.max
-  if (income <= bpa.phaseOut.start) return bpa.max
-  if (income >= bpa.phaseOut.end) return bpa.min
-  const f = (income - bpa.phaseOut.start) / (bpa.phaseOut.end - bpa.phaseOut.start)
-  return bpa.max - (bpa.max - bpa.min) * f
-}
 
 /** Manual corrections applied on top of the computed projection. */
 export interface TaxOverride {
