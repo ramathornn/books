@@ -181,7 +181,7 @@ interface Props {
 }
 
 export default function EditableTable({ section, columns, rows, totalRow = null, extraRows = [], preTotalRows = [], rowActions = null, hideTotals = false, onReorder = null, computedValues = null, editableComputedKeys = null, enableDayAssignment = false }: Props) {
-  const { data, computed, scenarios, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
+  const { data, computed, scenarios, showTable, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
   const bar = useFormulaBar()
   const globalSelectMode = !!bar?.selectMode?.picking
   const { from, to } = computed
@@ -305,6 +305,8 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
     const foreign = !!origin && origin.originScenarioId !== data.id
     bar?.insertRef(sec, key, monthLabel, foreign ? scenarioQualifier(data, scenarios) : null)
   }, [bar, data, scenarios])
+
+  if (!showTable) return null
 
   const stickyTd = 'sticky left-0 z-10 bg-white border-b border-gray-100 px-4 text-[13px] text-gray-900 whitespace-nowrap'
   const numTd = 'border-b border-gray-100 px-3 text-right text-[13px] tabular-nums'

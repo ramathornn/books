@@ -15,6 +15,9 @@ import { buildMonths, parseMonthLabel } from '@/lib/forecasts/months'
 
 const API_SECTION: Record<Section, 'income' | 'expense' | 'debt'> = { income: 'income', expenses: 'expense', receivables: 'debt' }
 
+export type ViewMode = 'table' | 'charts' | 'both'
+const VIEW_MODE_KEY = 'forecasts:viewMode'
+
 interface ForecastStore {
   data: ForecastData
   scenarios: ScenarioSummary[]
@@ -32,6 +35,11 @@ interface ForecastStore {
   /** Month index the headline figures are reported at. Defaults to the end of the view range. */
   asOfIndex: number
   setAsOfIndex: (index: number) => void
+  /** Which halves of a page to show. Shared by every forecast page and remembered. */
+  viewMode: ViewMode
+  setViewMode: (mode: ViewMode) => void
+  showTable: boolean
+  showCharts: boolean
   addRevenueItem: (name: string, currency?: string) => Promise<boolean>
   addExpenseCategory: (name: string) => Promise<boolean>
   addExpenseItem: (name: string, categoryName: string | null) => Promise<boolean>
@@ -113,6 +121,18 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     for (const [ccy, v] of Object.entries(data.rateOverrides || {})) r[ccy] = v
     return r
   }, [initialRates, data.rateOverrides])
+
+  // Table / charts preference, shared across pages and persisted. Starts at
+  // 'table' on the server so the markup matches, then adopts the stored choice.
+  const [viewMode, setViewModeState] = useState<ViewMode>('table')
+  useEffect(() => {
+    const saved = window.localStorage.getItem(VIEW_MODE_KEY)
+    if (saved === 'table' || saved === 'charts' || saved === 'both') setViewModeState(saved)
+  }, [])
+  const setViewMode = useCallback((mode: ViewMode) => {
+    setViewModeState(mode)
+    try { window.localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* private mode */ }
+  }, [])
 
   // "As of" month for the headline figures. Follows the end of the view range
   // until the user picks a month, and resets when the range or scenario moves.
@@ -707,6 +727,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
   const value = useMemo<ForecastStore>(() => ({
     data: scopedData, scenarios, rates, computed, readOnly, saving, updateCellIn,
     asOfIndex: effectiveAsOf, setAsOfIndex,
+    viewMode, setViewMode, showTable: viewMode !== 'charts', showCharts: viewMode !== 'table',
     switchScenario, refresh,
     updateCell, updateCells, setViewRange,
     addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable,
@@ -715,7 +736,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
     isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, setAsOfIndex, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, setAsOfIndex, viewMode, setViewMode, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

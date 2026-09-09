@@ -77,7 +77,7 @@ function DebtSettingsModal({ debtKey, onClose }: { debtKey: string; onClose: () 
 }
 
 export default function DebtsClient() {
-  const { data, computed, asOfIndex, addReceivable, removeRow, renameRow, toggleRowVisibility, reorderRow, readOnly } = useForecast()
+  const { data, computed, asOfIndex, showTable, showCharts, addReceivable, removeRow, renameRow, toggleRowVisibility, reorderRow, readOnly } = useForecast()
   const { viewMonths, from, debtBalances } = computed
   const [showAdd, setShowAdd] = useState(false)
   const [confirmKey, setConfirmKey] = useState<string | null>(null)
@@ -122,11 +122,13 @@ export default function DebtsClient() {
       <Hero label="Total outstanding" value={fmtMoney(totalOutstanding)} badge={`${paidPct.toFixed(1)}% paid`} badgeTone="green"
         sub={<>{visible.filter((n) => current(n) > 0).length} active accounts · Peak {fmtMoney(totalPeak)} · Balance at end of {asOfLabel}</>} />
 
+{showCharts && (
       <Card className="mb-6" title="Paydown trajectories">
         {visible.length ? <AreaChart data={trajectory} areas={visible.map((n, i) => ({ dataKey: n, color: CHART_COLORS[i % CHART_COLORS.length] }))} height={300} /> : <p className="text-sm text-gray-400">Add a debt account to see its trajectory.</p>}
       </Card>
+      )}
 
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className={`mb-3 flex items-start justify-between gap-3 ${showTable ? '' : 'hidden'}`}>
         <SectionTitle sub="Click any value to edit · Use the gear to link payments from an expense or set interest and amortization">Debts data</SectionTitle>
         <div className="flex gap-2">
           <AddButton onClick={() => setShowAll(true)}>View all ({all.length})</AddButton>

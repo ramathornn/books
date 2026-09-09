@@ -11,7 +11,7 @@ import { flatSetAside, monthlySetAside } from '@/lib/forecasts/setAside'
 import { toast } from '@/lib/toast'
 
 export default function ExpensesClient() {
-  const { data, computed, asOfIndex, addExpenseCategory, addExpenseItem, removeRow, renameRow, reorderRow, toggleRowVisibility, readOnly } = useForecast()
+  const { data, computed, asOfIndex, showTable, showCharts, addExpenseCategory, addExpenseItem, removeRow, renameRow, reorderRow, toggleRowVisibility, readOnly } = useForecast()
   const { viewMonths, viewExpenses, avgExpenses, categoryTotals, totalExpenses, totalIncome, from } = computed
   // Running totals through the selected month.
   const asOfTo = Math.max(from, asOfIndex)
@@ -45,14 +45,18 @@ export default function ExpensesClient() {
       <Hero label="Total expenses" value={fmtMoney(sumExpenses)} negative badge={`Avg ${fmtMoney(Math.round(avgExpenses))}/mo`}
         sub={<>Net savings: <span className={sumNet >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}>{fmtMoney(sumNet)}</span> · {data.months[from]} through {asOfLabel}</>} />
 
+{showCharts && (
       <Card className="mb-6"><AreaChart data={viewMonths.map((month, i) => ({ month, Expenses: viewExpenses[i] }))} areas={[{ dataKey: 'Expenses', color: CHART_COLORS[4] }]} height={300} /></Card>
+      )}
 
+{showCharts && (
       <div className="mb-6 grid gap-4 lg:grid-cols-[3fr_2fr]">
         <Card title="Category breakdown"><CategoryBars items={sortedCats} colors={CHART_COLORS} /></Card>
         <Card title="Distribution"><DonutChart data={sortedCats.map((c) => ({ name: c.name, value: c.total }))} /></Card>
       </div>
+      )}
 
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className={`mb-3 flex items-start justify-between gap-3 ${showTable ? '' : 'hidden'}`}>
         <SectionTitle sub={data.booksLinked ? 'Rows tagged Books come from open bills, recurring templates and expenses, and categorized spend. Shaded months are Books: past and current months are actuals, and future months with a bill or recurring item are locked. Unshaded future months are yours to forecast; where you leave them empty, Books fills in the 3-month run rate.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Click a row’s calendar icon to set the day the payment comes out (defaults to end of month) · Right-click a cell to override a single month'}>Expense data</SectionTitle>
         {!readOnly && <AddButton onClick={() => { setShowAddCat(true); setAddItemCat(null) }}>Add category</AddButton>}
       </div>

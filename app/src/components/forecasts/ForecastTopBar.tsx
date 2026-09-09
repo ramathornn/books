@@ -10,7 +10,7 @@ import DateRangePicker from './DateRangePicker'
 import { currentMonthIndex, monthLabel, monthTargetIndex } from '@/lib/forecasts/months'
 
 export default function ForecastTopBar({ fiscalYearEndMonth }: { fiscalYearEndMonth: number }) {
-  const { data, scenarios, setViewRange, switchScenario, saving, readOnly } = useForecast()
+  const { data, scenarios, setViewRange, switchScenario, saving, readOnly, viewMode, setViewMode } = useForecast()
   const ml = data.months.length
   const nowIdx = currentMonthIndex(data.months)
   const vf = data.viewFrom, vt = data.viewTo
@@ -63,6 +63,11 @@ export default function ForecastTopBar({ fiscalYearEndMonth }: { fiscalYearEndMo
             {(i === 1 || i === 4 || i === 7) && <span className="mx-0.5 h-5 w-px bg-gray-200" />}
             <button type="button" title={p.title} onClick={() => range(p.from, p.to)} className={btn(vf === Math.max(0, p.from) && vt === p.to)}>{p.label}</button>
           </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-0.5 rounded border border-gray-200 bg-white p-0.5" role="group" aria-label="Show">
+        {([['table', 'Table'], ['charts', 'Charts'], ['both', 'Both']] as const).map(([mode, label]) => (
+          <button key={mode} type="button" title={`Show ${label.toLowerCase()} on every forecast page`} onClick={() => setViewMode(mode)} className={btn(viewMode === mode)}>{label}</button>
         ))}
       </div>
       <span className="ml-auto text-[12px] text-gray-400">{saving ? 'Saving…' : readOnly ? 'Read-only' : 'All changes saved'}</span>

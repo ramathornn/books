@@ -35,7 +35,7 @@ const OVERRIDE_LABELS: Record<string, string> = {
 }
 
 export default function TaxesClient() {
-  const { data } = useForecast()
+  const { data, showTable, showCharts } = useForecast()
   const [year, setYear] = useState<number | null>(null)
   const [years, setYears] = useState<number[]>([])
   const [proj, setProj] = useState<Projection | null>(null)
@@ -95,11 +95,14 @@ export default function TaxesClient() {
         { label: 'Set aside monthly', value: fmtMoney(proj.monthlySetAside) },
       ]} />
 
+{showCharts && (
       <Card title="Tax by bracket" className="mb-4">
         <TaxTiers tiers={proj.tiers} />
       </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+{showTable && (
         <Card title="How it adds up">
           <table className="w-full text-sm">
             <tbody>
@@ -113,6 +116,7 @@ export default function TaxesClient() {
             </tbody>
           </table>
         </Card>
+        )}
         <Card title="Assumptions">
           <ul className="list-disc space-y-1.5 pl-4 text-[13px] text-gray-600">
             {proj.notes.map((n, i) => <li key={i}>{n}</li>)}

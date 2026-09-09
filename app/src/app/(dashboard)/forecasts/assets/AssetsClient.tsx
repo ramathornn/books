@@ -32,7 +32,7 @@ function valuationStatus(a: Asset): { label: string; stale: boolean } {
 }
 
 export default function AssetsClient() {
-  const { data, computed, asOfIndex, addAsset, updateAsset, removeAsset, renameAsset, readOnly } = useForecast()
+  const { data, computed, asOfIndex, showTable, showCharts, addAsset, updateAsset, removeAsset, renameAsset, readOnly } = useForecast()
   const { assetsByType, debtBalances, viewMonths, netWorthSeries, assetValueSeries, liabilitySeries, from } = computed
   // Headline figures are reported at the selected month, not just today.
   const netWorth = netWorthSeries[asOfIndex] ?? 0
@@ -71,6 +71,7 @@ export default function AssetsClient() {
         { label: 'Net worth', value: fmtMoney(netWorth), sub: 'Assets − liabilities', neg: netWorth < 0 },
       ]} />
 
+{showCharts && (
       <Card title="Net worth over time" className="mb-6">
         <AreaChart
           data={netWorthData}
@@ -85,8 +86,9 @@ export default function AssetsClient() {
           Assets are carried at their most recent valuation as of each month, plus projected cash, minus outstanding debt. Re-value an asset and the line steps at that date rather than rewriting history.
         </p>
       </Card>
+      )}
 
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className={`mb-3 flex items-start justify-between gap-3 ${showTable ? '' : 'hidden'}`}>
         <SectionTitle sub="Click a value to edit it · Link a debt to see equity">Assets</SectionTitle>
         {!readOnly && <AddButton onClick={() => setShowAdd(true)}>Add asset</AddButton>}
       </div>
@@ -101,7 +103,7 @@ export default function AssetsClient() {
         </div>
       )}
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className={`mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 ${showTable ? '' : 'hidden'}`}>
         {entries.map(([name, a], i) => {
           const linkedBalance = a.linkedDebt ? Math.max(0, (debtBalances[a.linkedDebt] || [])[asOfIndex] || 0) : 0
           const equity = a.value - linkedBalance
@@ -136,7 +138,7 @@ export default function AssetsClient() {
         {!entries.length && !showAdd && <p className="text-sm text-gray-400">No assets yet.</p>}
       </div>
 
-      {byType.length > 0 && (
+      {showCharts && byType.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
           <Card title="Asset breakdown"><CategoryBars items={byType} colors={CHART_COLORS} /></Card>
           <Card title="Allocation"><DonutChart data={byType.map((d) => ({ name: d.name, value: d.total }))} /></Card>

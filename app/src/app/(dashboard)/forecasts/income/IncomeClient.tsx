@@ -12,7 +12,7 @@ import { resolveValue } from '@/lib/forecasts/formula'
 import { toast } from '@/lib/toast'
 
 export default function IncomeClient() {
-  const { data, computed, asOfIndex, rates, addRevenueItem, removeRow, renameRow, setIncomeCurrency, reorderRow, toggleRowVisibility, importBooksRevenue, readOnly } = useForecast()
+  const { data, computed, asOfIndex, showTable, showCharts, rates, addRevenueItem, removeRow, renameRow, setIncomeCurrency, reorderRow, toggleRowVisibility, importBooksRevenue, readOnly } = useForecast()
   const [importing, setImporting] = useState(false)
   const { viewMonths, viewIncome, avgIncome, growth, from, to, totalIncome } = computed
   // Running total through the selected month.
@@ -35,14 +35,18 @@ export default function IncomeClient() {
       <Hero label="Total income (CAD)" value={fmtMoney(sumIncome)} badge={`${lastGrowth >= 0 ? '▲' : '▼'} ${lastGrowth.toFixed(1)}% MoM`} badgeTone={lastGrowth >= 0 ? 'green' : 'red'}
         sub={<>{data.months[from]} through {asOfLabel} · Avg {fmtMoney(Math.round(avgIncome))}/mo <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px]">USD {rates.USD.toFixed(3)}</span> <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px]">EUR {rates.EUR.toFixed(3)}</span></>} />
 
+{showCharts && (
       <Card className="mb-6"><BarChart data={stacked} bars={keys.map((k, i) => ({ dataKey: k, color: CHART_COLORS[i % CHART_COLORS.length] }))} stacked showLegend height={300} /></Card>
+      )}
 
+{showCharts && (
       <div className="mb-6 grid gap-4 lg:grid-cols-[3fr_2fr]">
         <Card title="Month-over-month growth"><AreaChart data={viewMonths.map((month, i) => ({ month, Growth: growth[i] }))} areas={[{ dataKey: 'Growth', color: CHART_COLORS[2], name: 'Growth %' }]} height={220} yFormatter={(v) => `${v.toFixed(0)}%`} valueFormatter={(v) => `${v.toFixed(1)}%`} /></Card>
         <Card title="Income mix"><DonutChart data={donut} /></Card>
       </div>
+      )}
 
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className={`mb-3 flex items-start justify-between gap-3 ${showTable ? '' : 'hidden'}`}>
         <SectionTitle sub={data.booksLinked ? 'Rows tagged Books are active clients (invoiced this or last month). Shaded months are Books: past and current months show actuals, and any future month with a sent invoice or recurring template is locked to it. A draft invoice never locks a month — keep forecasting by hand until it’s sent. Unshaded future months are yours to forecast; Books replaces them as you invoice.' : 'Click any value to edit · Type = for a formula · Drag the corner handle to fill · Right-click a cell to set the day it lands on · Values in source currency, totals in CAD'}>Income data</SectionTitle>
         {!readOnly && (
           <div className="flex gap-2">

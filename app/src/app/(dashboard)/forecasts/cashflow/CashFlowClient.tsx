@@ -10,7 +10,7 @@ import { currentMonthIndex, daysInMonth } from '@/lib/forecasts/months'
 import { toast } from '@/lib/toast'
 
 export default function CashFlowClient() {
-  const { data, computed, asOfIndex, setBankBalance, clearBankBalance, readOnly } = useForecast()
+  const { data, computed, asOfIndex, showTable, showCharts, setBankBalance, clearBankBalance, readOnly } = useForecast()
   const { viewMonths, viewNet, viewBalance, ratio, from, endingBalance, totalIncome, totalExpenses } = computed
   // Headline reports the balance at the selected month, with net for the span.
   const asOfTo = Math.max(from, asOfIndex)
@@ -62,12 +62,12 @@ export default function CashFlowClient() {
       <Hero label="Ending balance" value={fmtMoney(lastBalance)} negative={lastBalance < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${fmtMoney(sumNet)} net`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
         sub={<>Balance at end of {asOfLabel} · Peak {fmtMoney(maxBal)} ({viewMonths[viewBalance.indexOf(maxBal)]}) · Low {fmtMoney(minBal)} ({viewMonths[viewBalance.indexOf(minBal)]})</>} />
 
-      <div className="mb-4 inline-flex rounded border border-gray-200 bg-white p-0.5">
+      <div className={`mb-4 inline-flex rounded border border-gray-200 bg-white p-0.5 ${showTable ? '' : 'hidden'}`}>
         <button type="button" className={tab('timeline')} onClick={() => setView('timeline')}>Timeline</button>
         <button type="button" className={tab('monthly')} onClick={() => setView('monthly')}>Monthly</button>
       </div>
 
-      {view === 'timeline' && <div className="mb-6"><CashFlowTimeline /></div>}
+      {showTable && view === 'timeline' && <div className="mb-6"><CashFlowTimeline /></div>}
 
       <Card className="mb-6" title="Cash on hand" action={!readOnly && (
         <button type="button" onClick={() => { setShowRecord(!showRecord); setRecordMonth(todayIdx); setRecordDay(new Date().getDate()) }} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{showRecord ? 'Cancel' : 'Record balance'}</button>
@@ -103,7 +103,7 @@ export default function CashFlowClient() {
         <p className="text-[12px] text-gray-500">{data.booksLinked ? 'This scenario anchors to your Books bank balances automatically. Record a balance only to override a specific month.' : 'Record your total cash across all accounts to anchor the projection. Future months recalculate from that point.'}</p>
       </Card>
 
-      {view === 'monthly' && (
+      {showCharts && (view === 'monthly' || !showTable) && (
         <>
           <Card className="mb-6"><AreaChart data={viewMonths.map((m, i) => ({ month: m, Balance: viewBalance[i], ...(data.bankBalances[String(from + i)] ? { Snapshot: viewBalance[i] } : {}) }))} areas={[{ dataKey: 'Balance', color: CHART_COLORS[0] }]} height={340} /></Card>
           <div className="grid gap-4 lg:grid-cols-2">
