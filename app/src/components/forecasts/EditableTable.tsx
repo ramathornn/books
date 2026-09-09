@@ -168,7 +168,8 @@ interface Props {
   columns: string[]
   rows: TableRow[]
   totalRow?: { label: string; values: number[] } | null
-  extraRows?: { label: string; values: number[] }[]
+  /** Rows under the total. 'muted' reads as reference data, 'signed' colours by sign. */
+  extraRows?: { label: string; values: number[]; tone?: 'signed' | 'muted' }[]
   /** Rows rendered immediately above the total row (e.g. the CRA set-aside). */
   preTotalRows?: { label: string; values: number[]; note?: string }[]
   rowActions?: ((row: TableRow) => React.ReactNode) | null
@@ -435,12 +436,13 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
           )}
           {extraRows.map((r) => {
             const sum = r.values.reduce((a, b) => a + b, 0)
+            const tint = (v: number) => (r.tone === 'muted' ? 'text-gray-500' : v >= 0 ? 'text-[#006644]' : 'text-[#BF2600]')
             return (
               <tr key={r.label} className="text-gray-600">
-                <td className={`${stickyTd} py-2`}>{r.label}</td>
+                <td className={`${stickyTd} py-2 ${r.tone === 'muted' ? 'text-gray-500' : ''}`}>{r.label}</td>
                 {rowActions && <td className="border-b border-gray-100" />}
-                {r.values.map((v, i) => <td key={i} className={`${numTd} py-2 ${v >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}`}>{fmtMoney(v)}</td>)}
-                {!hideTotals && <td className={`${numTd} py-2 ${sum >= 0 ? 'text-[#006644]' : 'text-[#BF2600]'}`}>{fmtMoney(sum)}</td>}
+                {r.values.map((v, i) => <td key={i} className={`${numTd} py-2 ${tint(v)}`}>{fmtMoney(v)}</td>)}
+                {!hideTotals && <td className={`${numTd} py-2 font-semibold ${tint(sum)}`}>{fmtMoney(sum)}</td>}
               </tr>
             )
           })}

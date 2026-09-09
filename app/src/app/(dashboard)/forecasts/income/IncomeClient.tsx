@@ -14,7 +14,7 @@ import { toast } from '@/lib/toast'
 export default function IncomeClient() {
   const { data, computed, asOfIndex, showTable, showCharts, rates, addRevenueItem, removeRow, renameRow, setIncomeCurrency, reorderRow, toggleRowVisibility, importBooksRevenue, readOnly } = useForecast()
   const [importing, setImporting] = useState(false)
-  const { viewMonths, viewIncome, avgIncome, growth, from, to, totalIncome } = computed
+  const { viewMonths, viewIncome, viewExpenses, avgIncome, growth, from, to, totalIncome } = computed
   // Running total through the selected month.
   const asOfTo = Math.max(from, asOfIndex)
   const sumIncome = totalIncome.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
@@ -64,6 +64,10 @@ export default function IncomeClient() {
       <EditableTable section="income" columns={viewMonths} enableDayAssignment
         rows={keys.map((k) => ({ key: k, label: k, currency: currencies[k] || 'CAD', linked: !!data.linked.income?.[k], linkedNote: data.linked.income?.[k]?.note }))}
         totalRow={{ label: 'Total income (CAD)', values: viewIncome }}
+        extraRows={[
+          { label: 'Projected expenses', values: viewExpenses, tone: 'muted' },
+          { label: 'Net', values: viewIncome.map((v, i) => v - (viewExpenses[i] ?? 0)) },
+        ]}
         onReorder={readOnly ? null : (d, t, p) => reorderRow('income', d, t, p)}
         rowActions={readOnly ? null : (row) => row.linked ? <span className="text-[11px] text-gray-400">CAD</span> : (
           <span className="inline-flex items-center gap-0.5">
