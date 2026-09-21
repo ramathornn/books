@@ -145,7 +145,7 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
   return (
     <div className="mb-3">
       <h3 className="text-sm font-semibold text-gray-900">{children}</h3>
-      {sub && <p className="mt-0.5 text-[12px] text-gray-500">{sub}</p>}
+      {sub && <p className="mt-0.5 max-w-[50%] text-[12px] leading-snug text-gray-500">{sub}</p>}
     </div>
   )
 }

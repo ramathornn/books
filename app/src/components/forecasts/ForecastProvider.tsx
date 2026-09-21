@@ -34,6 +34,8 @@ interface ForecastStore {
   setViewRange: (from: number, to: number) => void
   /** Month index the headline figures are reported at. Defaults to the end of the view range. */
   asOfIndex: number
+  /** True once the user has chosen an as-of month (false = following the default). */
+  asOfPicked: boolean
   setAsOfIndex: (index: number) => void
   /** Which halves of a page to show. Shared by every forecast page and remembered. */
   viewMode: ViewMode
@@ -726,7 +728,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
 
   const value = useMemo<ForecastStore>(() => ({
     data: scopedData, scenarios, rates, computed, readOnly, saving, updateCellIn,
-    asOfIndex: effectiveAsOf, setAsOfIndex,
+    asOfIndex: effectiveAsOf, asOfPicked: asOfIndex !== null, setAsOfIndex,
     viewMode, setViewMode, showTable: viewMode !== 'charts', showCharts: viewMode !== 'table',
     switchScenario, refresh,
     updateCell, updateCells, setViewRange,
@@ -736,7 +738,7 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     addAsset, updateAsset, renameAsset, removeAsset,
     renameScenario, setRateOverride, extendMonths, importBooksRevenue,
     isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, setAsOfIndex, viewMode, setViewMode, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, asOfIndex, setAsOfIndex, viewMode, setViewMode, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

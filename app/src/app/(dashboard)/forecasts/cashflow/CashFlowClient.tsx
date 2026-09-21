@@ -10,16 +10,17 @@ import { currentMonthIndex, daysInMonth } from '@/lib/forecasts/months'
 import { toast } from '@/lib/toast'
 
 export default function CashFlowClient() {
-  const { data, computed, asOfIndex, showTable, showCharts, setBankBalance, clearBankBalance, readOnly } = useForecast()
+  const { data, computed, asOfIndex, asOfPicked, showTable, showCharts, setBankBalance, clearBankBalance, readOnly } = useForecast()
   const { viewMonths, viewNet, viewBalance, ratio, from, endingBalance, totalIncome, totalExpenses } = computed
-  // Headline reports the balance at the selected month, with net for the span.
-  const asOfTo = Math.max(from, asOfIndex)
-  const lastBalance = endingBalance[asOfIndex] ?? 0
+  const todayIdx = currentMonthIndex(data.months)
+  // Headline reports the balance as of today until the user picks a month, with net for the span.
+  const balanceIdx = asOfPicked ? asOfIndex : todayIdx
+  const asOfTo = Math.max(from, balanceIdx)
+  const lastBalance = endingBalance[balanceIdx] ?? 0
   const sumNet = totalIncome.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0) - totalExpenses.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
-  const asOfLabel = data.months[asOfIndex] ?? ''
+  const asOfLabel = data.months[balanceIdx] ?? ''
   const [view, setView] = useState<'timeline' | 'monthly'>('timeline')
   const minBal = Math.min(...viewBalance), maxBal = Math.max(...viewBalance)
-  const todayIdx = currentMonthIndex(data.months)
 
   const [showRecord, setShowRecord] = useState(false)
   const [recordMonth, setRecordMonth] = useState(todayIdx)
@@ -59,8 +60,8 @@ export default function CashFlowClient() {
 
   return (
     <div>
-      <Hero label="Ending balance" value={fmtMoney(lastBalance)} negative={lastBalance < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${fmtMoney(sumNet)} net`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
-        sub={<>Balance at end of {asOfLabel} · Peak {fmtMoney(maxBal)} ({viewMonths[viewBalance.indexOf(maxBal)]}) · Low {fmtMoney(minBal)} ({viewMonths[viewBalance.indexOf(minBal)]})</>} />
+      <Hero label={`Balance as of ${asOfPicked ? asOfLabel : 'today'}`} value={fmtMoney(lastBalance)} negative={lastBalance < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${fmtMoney(sumNet)} net`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
+        sub={<>Projected to end of {asOfLabel} · Peak {fmtMoney(maxBal)} ({viewMonths[viewBalance.indexOf(maxBal)]}) · Low {fmtMoney(minBal)} ({viewMonths[viewBalance.indexOf(minBal)]})</>} />
 
       <div className={`mb-4 inline-flex rounded border border-gray-200 bg-white p-0.5 ${showTable ? '' : 'hidden'}`}>
         <button type="button" className={tab('timeline')} onClick={() => setView('timeline')}>Timeline</button>
