@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   // secret) have no user session — they authenticate inside the route.
   '/api/plaid/webhook',
   '/api/plaid/sync-all',
+  // Daily Bank of Canada rate refresh cron (shared secret, checked in the route).
+  '/api/fx/refresh',
   // Headless upload/import endpoints — they do their own Bearer-token OR session
   // auth (requireApiAuth) in the route handler, so they must bypass the
   // session-cookie redirect for sandbox/agent curl callers.

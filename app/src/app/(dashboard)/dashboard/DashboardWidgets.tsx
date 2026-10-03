@@ -20,6 +20,8 @@ interface RevenueByClientProps {
   revenueByCurrency: Record<string, CurrencyRevenue>
   currencies: string[]
   defaultCurrency: string
+  rangeKey?: DateRangeKey
+  rangeLabel?: string
 }
 
 const PIE_COLORS = [
@@ -35,6 +37,8 @@ export function RevenueByClientWidget({
   revenueByCurrency,
   currencies,
   defaultCurrency,
+  rangeKey,
+  rangeLabel,
 }: RevenueByClientProps) {
   const [currency, setCurrency] = useState(
     currencies.includes(defaultCurrency) ? defaultCurrency : currencies[0]
@@ -102,6 +106,13 @@ export function RevenueByClientWidget({
             onChange={setCurrency}
             currencies={currencies}
           />
+          {rangeLabel && rangeKey && (
+            <DateRangeSelector
+              paramName="clientRange"
+              selected={rangeKey}
+              triggerLabel={rangeLabel}
+            />
+          )}
         </div>
         <span
           className="text-xs text-[#0075DD] opacity-60 cursor-not-allowed"
@@ -281,40 +292,12 @@ export function BankConnectionsWidget() {
   )
 }
 
-export function UnbilledTimeWidget() {
-  return (
-    <div className="bg-white rounded-lg border border-[#E1E6EB] p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-[#001B40]">Unbilled Time</h2>
-      </div>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-8">
-        <div className="w-28 h-28 flex-shrink-0">
-          <svg viewBox="0 0 100 100" className="w-full h-full">
-            <circle cx="50" cy="50" r="40" fill="#F3F4F6" />
-            <circle cx="50" cy="50" r="16" fill="#FFFFFF" />
-          </svg>
-        </div>
-        <div className="flex-1">
-          <div className="space-y-2">
-            <div className="h-2 bg-gray-100 rounded w-4/5" />
-            <div className="h-2 bg-gray-100 rounded w-3/5" />
-            <div className="h-2 bg-gray-100 rounded w-2/3" />
-          </div>
-        </div>
-        <div className="flex-shrink-0 text-right">
-          <p className="text-sm text-gray-500 max-w-[220px]">
-            You keep track of time that needs to be billed.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 interface DashboardWidgetsProps {
   revenueByCurrency: Record<string, CurrencyRevenue>
   revenueCurrencies: string[]
   currency: string
+  clientRangeKey?: DateRangeKey
+  clientRangeLabel?: string
   totalSpending: number
   spendingRangeKey?: DateRangeKey
   spendingRangeLabel?: string
@@ -324,6 +307,8 @@ export default function DashboardWidgets({
   revenueByCurrency,
   revenueCurrencies,
   currency,
+  clientRangeKey,
+  clientRangeLabel,
   totalSpending,
   spendingRangeKey,
   spendingRangeLabel,
@@ -334,6 +319,8 @@ export default function DashboardWidgets({
         revenueByCurrency={revenueByCurrency}
         currencies={revenueCurrencies}
         defaultCurrency={currency}
+        rangeKey={clientRangeKey}
+        rangeLabel={clientRangeLabel}
       />
       {/* totalSpending is a GL figure and the GL is CAD, so format it as CAD —
           not the page-level `currency`, which is auto-picked from invoices. */}
@@ -343,7 +330,6 @@ export default function DashboardWidgets({
         spendingRangeKey={spendingRangeKey}
         spendingRangeLabel={spendingRangeLabel}
       />
-      <UnbilledTimeWidget />
     </div>
   )
 }

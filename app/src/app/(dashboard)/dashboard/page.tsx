@@ -109,9 +109,11 @@ export default async function DashboardPage({
   const profitRangeKey = pickRange(params.profitRange, 'this-year')
   const revenueRangeKey = pickRange(params.revenueRange, 'last-6-months')
   const spendingRangeKey = pickRange(params.spendingRange, 'this-year')
+  const clientRangeKey = pickRange(params.clientRange, 'last-6-months')
 
   const revenueRange = resolveDateRange(revenueRangeKey, now)
   const spendingRange = resolveDateRange(spendingRangeKey, now)
+  const clientRange = resolveDateRange(clientRangeKey, now)
 
   // Profit range supports either the preset key or explicit profitStart/profitEnd
   // (set by the ProfitFilterPopover) plus a month|quarter grouping.
@@ -237,7 +239,7 @@ export default async function DashboardPage({
     spendingRange,
   })
 
-  // ---- Revenue by client, per currency (for the selected revenue range) ----
+  // ---- Revenue by client, per currency (for the widget's own date range) ----
   // We compute every supported currency up front so the widget can toggle between
   // them instantly on the client, without reloading the rest of the dashboard.
   const revenueByClientRaw = await prisma.payment.groupBy({
@@ -245,7 +247,7 @@ export default async function DashboardPage({
     where: {
       status: 'paid',
       currency: { in: [...SUPPORTED_CURRENCIES] },
-      paymentDate: { gte: revenueRange.start, lte: revenueRange.end },
+      paymentDate: { gte: clientRange.start, lte: clientRange.end },
     },
     _sum: { amount: true },
   })
@@ -487,11 +489,13 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {/* Revenue by Client, Spending, Unbilled Time */}
+        {/* Revenue by Client, Spending */}
         <DashboardWidgets
           revenueByCurrency={revenueByCurrency}
           revenueCurrencies={[...SUPPORTED_CURRENCIES]}
           currency={currency}
+          clientRangeKey={clientRangeKey}
+          clientRangeLabel={clientRange.label}
           totalSpending={gl.totalSpending}
           spendingRangeKey={spendingRangeKey}
           spendingRangeLabel={spendingRange.label}

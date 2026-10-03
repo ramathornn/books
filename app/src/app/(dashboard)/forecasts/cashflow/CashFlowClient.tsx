@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import { AreaChart, BarChart, CHART_COLORS } from '@/components/forecasts/charts'
+import CashFlowChart from '@/components/forecasts/CashFlowChart'
 import CashFlowTimeline from '@/components/forecasts/CashFlowTimeline'
 import { Card, Hero, iconBtnDanger, TrashIcon } from '@/components/forecasts/ui'
 import { fmtMoney } from '@/lib/forecasts/computed'
@@ -63,6 +64,8 @@ export default function CashFlowClient() {
       <Hero label={`Balance as of ${asOfPicked ? asOfLabel : 'today'}`} value={fmtMoney(lastBalance)} negative={lastBalance < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${fmtMoney(sumNet)} net`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
         sub={<>Projected to end of {asOfLabel} · Peak {fmtMoney(maxBal)} ({viewMonths[viewBalance.indexOf(maxBal)]}) · Low {fmtMoney(minBal)} ({viewMonths[viewBalance.indexOf(minBal)]})</>} />
 
+      {showCharts && <Card className="mb-6" title="Expected balance"><CashFlowChart /></Card>}
+
       <div className={`mb-4 inline-flex rounded border border-gray-200 bg-white p-0.5 ${showTable ? '' : 'hidden'}`}>
         <button type="button" className={tab('timeline')} onClick={() => setView('timeline')}>Timeline</button>
         <button type="button" className={tab('monthly')} onClick={() => setView('monthly')}>Monthly</button>
@@ -105,13 +108,10 @@ export default function CashFlowClient() {
       </Card>
 
       {showCharts && (view === 'monthly' || !showTable) && (
-        <>
-          <Card className="mb-6"><AreaChart data={viewMonths.map((m, i) => ({ month: m, Balance: viewBalance[i], ...(data.bankBalances[String(from + i)] ? { Snapshot: viewBalance[i] } : {}) }))} areas={[{ dataKey: 'Balance', color: CHART_COLORS[0] }]} height={340} /></Card>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Income / expense ratio"><AreaChart data={viewMonths.map((m, i) => ({ month: m, Ratio: Math.round(ratio[i] * 100) / 100, 'Break even': 1 }))} areas={[{ dataKey: 'Ratio', color: CHART_COLORS[1] }, { dataKey: 'Break even', color: CHART_COLORS[4] }]} height={240} yFormatter={(v) => `${v.toFixed(1)}x`} valueFormatter={(v) => `${v.toFixed(2)}x`} /></Card>
-            <Card title="Monthly surplus / deficit"><BarChart data={viewMonths.map((m, i) => ({ month: m, Amount: viewNet[i] }))} bars={[{ dataKey: 'Amount', name: 'Surplus / deficit', color: CHART_COLORS[1] }]} colorByValue height={240} /></Card>
-          </div>
-        </>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card title="Income / expense ratio"><AreaChart data={viewMonths.map((m, i) => ({ month: m, Ratio: Math.round(ratio[i] * 100) / 100, 'Break even': 1 }))} areas={[{ dataKey: 'Ratio', color: CHART_COLORS[1] }, { dataKey: 'Break even', color: CHART_COLORS[4] }]} height={240} yFormatter={(v) => `${v.toFixed(1)}x`} valueFormatter={(v) => `${v.toFixed(2)}x`} /></Card>
+          <Card title="Monthly surplus / deficit"><BarChart data={viewMonths.map((m, i) => ({ month: m, Amount: viewNet[i] }))} bars={[{ dataKey: 'Amount', name: 'Surplus / deficit', color: CHART_COLORS[1] }]} colorByValue height={240} /></Card>
+        </div>
       )}
     </div>
   )

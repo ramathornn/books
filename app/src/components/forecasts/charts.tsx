@@ -63,8 +63,8 @@ function Tooltip({ x, y, title, rows }: { x: number; y: number; title: string; r
   return (
     <div className="pointer-events-none absolute z-20 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] shadow-lg" style={{ left: x, top: y, transform: 'translate(-50%, -110%)' }}>
       <div className="mb-1 font-medium text-gray-900">{title}</div>
-      {rows.map((r) => (
-        <div key={r.name} className="flex items-center justify-between gap-4">
+      {rows.map((r, i) => (
+        <div key={`${r.name}-${i}`} className="flex items-center justify-between gap-4">
           <span className="flex items-center gap-1.5 text-gray-500"><span className="inline-block h-2 w-2 rounded-full" style={{ background: r.color }} />{r.name}</span>
           <span className="tabular-nums text-gray-900">{r.value}</span>
         </div>
@@ -143,6 +143,76 @@ export function AreaChart({ data, areas, height = 280, yFormatter = fmtShort, va
       {hover !== null && (
         <Tooltip x={x(hover)} y={PAD.top + 20} title={String(data[hover].month)} rows={areas.map((a) => ({ name: a.name || a.dataKey, value: valueFormatter(Number(data[hover][a.dataKey]) || 0), color: a.color }))} />
       )}
+    </div>
+  )
+}
+
+export interface EventPoint { t: number; value: number; label: string; color: string; rows: { name: string; value: string; color: string }[] }
+
+/** Stepped balance line over a continuous time axis, with a dot per event day. */
+export function EventLineChart({ points, start, end, startValue, ticks: xTicks, marker, color = CHART_COLORS[0], height = 300, yFormatter = fmtShort }: {
+  points: EventPoint[]
+  start: number
+  end: number
+  startValue: number
+  ticks: { t: number; label: string }[]
+  marker?: { t: number; label: string }
+  color?: string
+  height?: number
+  yFormatter?: (n: number) => string
+}) {
+  const id = safeId(useId())
+  const [wrapRef, W] = useContainerWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const all = useMemo(() => [startValue, ...points.map((p) => p.value)], [points, startValue])
+  const { ticks, y } = useScale(all, height)
+  const innerW = W - PAD.left - PAD.right
+  const x = (t: number) => PAD.left + (end <= start ? innerW / 2 : ((Math.min(end, Math.max(start, t)) - start) / (end - start)) * innerW)
+  const labelEvery = xTicks.length <= 8 ? 1 : Math.ceil(xTicks.length / 8)
+
+  // The balance only moves on an event, so it holds flat until the next one.
+  const line = `M${x(start)},${y(startValue)}${points.map((p) => ` H${x(p.t)} V${y(p.value)}`).join('')} H${x(end)}`
+  const area = `${line} V${y(0)} H${x(start)} Z`
+  const hp = hover !== null ? points[hover] : null
+
+  return (
+    <div ref={wrapRef} className="relative w-full" onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${height}`} width={W} height={height} className="block"
+        onMouseMove={(e) => {
+          if (!points.length) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          const px = ((e.clientX - rect.left) / rect.width) * W
+          let best = 0, bd = Infinity
+          for (let i = 0; i < points.length; i++) { const d = Math.abs(px - x(points[i].t)); if (d < bd) { bd = d; best = i } }
+          setHover(best)
+        }}>
+        <defs>
+          <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="#EEF1F4" strokeDasharray="3 3" />
+            <text x={PAD.left - 6} y={y(t)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="#8C9BAB">{yFormatter(t)}</text>
+          </g>
+        ))}
+        {xTicks.map((t, i) => i % labelEvery === 0 && (
+          <text key={t.t} x={x(t.t)} y={height - 8} textAnchor={i === 0 ? 'start' : 'middle'} fontSize={11} fill="#8C9BAB">{t.label}</text>
+        ))}
+        <path d={area} fill={`url(#${id}-fill)`} />
+        <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+        {marker && marker.t >= start && marker.t <= end && (
+          <g>
+            <line x1={x(marker.t)} x2={x(marker.t)} y1={PAD.top} y2={height - PAD.bottom} stroke={color} strokeDasharray="4 3" />
+            <text x={x(marker.t) + 4} y={PAD.top + 8} fontSize={10} fill={color}>{marker.label}</text>
+          </g>
+        )}
+        {hp && <line x1={x(hp.t)} x2={x(hp.t)} y1={PAD.top} y2={height - PAD.bottom} stroke="#C9D1DA" />}
+        {points.map((p, i) => <circle key={i} cx={x(p.t)} cy={y(p.value)} r={i === hover ? 5 : 3} fill={p.color} stroke="#fff" strokeWidth={1.5} />)}
+      </svg>
+      {hp && <Tooltip x={x(hp.t)} y={PAD.top + 20} title={hp.label} rows={hp.rows} />}
     </div>
   )
 }
