@@ -327,7 +327,14 @@ export async function proxy(request: NextRequest) {
 }
 
 function addSecurityHeaders(response: NextResponse): NextResponse {
-  response.headers.set('X-Frame-Options', 'DENY')
+  // FRAME_ANCESTORS (space-separated origins) lets a trusted portal embed the
+  // app; unset = framing is denied outright. Mirrors next.config.ts.
+  const frameAncestors = (process.env.FRAME_ANCESTORS || '').trim()
+  if (frameAncestors) {
+    response.headers.set('Content-Security-Policy', `frame-ancestors 'self' ${frameAncestors}`)
+  } else {
+    response.headers.set('X-Frame-Options', 'DENY')
+  }
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   // Force HTTPS for a year so a MITM can't downgrade to HTTP after first visit.
