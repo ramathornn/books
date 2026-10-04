@@ -1,23 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForecast } from '@/components/forecasts/ForecastProvider'
 import { AreaChart, BarChart, CHART_COLORS } from '@/components/forecasts/charts'
 import CashFlowChart from '@/components/forecasts/CashFlowChart'
 import CashFlowTimeline from '@/components/forecasts/CashFlowTimeline'
 import { Card, Hero, iconBtnDanger, TrashIcon } from '@/components/forecasts/ui'
 import { fmtMoney } from '@/lib/forecasts/computed'
+import { balanceAt, buildEvents, computeBase, pickAnchor } from '@/lib/forecasts/dailyBalance'
 import { currentMonthIndex, daysInMonth } from '@/lib/forecasts/months'
 import { toast } from '@/lib/toast'
 
 export default function CashFlowClient() {
-  const { data, computed, asOfIndex, asOfPicked, showTable, showCharts, setBankBalance, clearBankBalance, readOnly } = useForecast()
+  const { data, computed, rates, asOfIndex, asOfPicked, showTable, showCharts, setBankBalance, clearBankBalance, readOnly } = useForecast()
   const { viewMonths, viewNet, viewBalance, ratio, from, endingBalance, totalIncome, totalExpenses } = computed
   const todayIdx = currentMonthIndex(data.months)
-  // Headline reports the balance as of today until the user picks a month, with net for the span.
+  // Headline reports the balance as of today (to the day, same as the timeline)
+  // until the user picks a month, then that month's ending balance.
+  const todayBalance = useMemo(() => {
+    const events = buildEvents(data, rates)
+    const d = new Date()
+    return balanceAt(computeBase(events, pickAnchor(data)), events, new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59))
+  }, [data, rates])
   const balanceIdx = asOfPicked ? asOfIndex : todayIdx
   const asOfTo = Math.max(from, balanceIdx)
-  const lastBalance = endingBalance[balanceIdx] ?? 0
+  const lastBalance = asOfPicked ? endingBalance[balanceIdx] ?? 0 : todayBalance
   const sumNet = totalIncome.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0) - totalExpenses.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
   const asOfLabel = data.months[balanceIdx] ?? ''
   const [view, setView] = useState<'timeline' | 'monthly'>('timeline')
@@ -61,8 +68,8 @@ export default function CashFlowClient() {
 
   return (
     <div>
-      <Hero label={`Balance as of ${asOfPicked ? asOfLabel : 'today'}`} value={fmtMoney(lastBalance)} negative={lastBalance < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${fmtMoney(sumNet)} net`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
-        sub={<>Projected to end of {asOfLabel} · Peak {fmtMoney(maxBal)} ({viewMonths[viewBalance.indexOf(maxBal)]}) · Low {fmtMoney(minBal)} ({viewMonths[viewBalance.indexOf(minBal)]})</>} />
+      <Hero asOfToday label={`Balance as of ${asOfPicked ? asOfLabel : 'today'}`} value={fmtMoney(lastBalance)} negative={lastBalance < 0} badge={`${sumNet >= 0 ? '▲' : '▼'} ${fmtMoney(sumNet)} net`} badgeTone={sumNet >= 0 ? 'green' : 'red'}
+        sub={<>{asOfPicked ? `Projected to end of ${asOfLabel} · ` : ''}Peak {fmtMoney(maxBal)} ({viewMonths[viewBalance.indexOf(maxBal)]}) · Low {fmtMoney(minBal)} ({viewMonths[viewBalance.indexOf(minBal)]})</>} />
 
       {showCharts && <Card className="mb-6" title="Expected balance"><CashFlowChart /></Card>}
 

@@ -122,12 +122,7 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
     const expenseArr = hasLinkedExpense && settings ? expenses[settings.linkedExpense as string] : null
     const monthlyRate = hasInterest && settings ? settings.interestRate / 100 / 12 : 0
 
-    if (expenseArr) {
-      const firstPayment = resolveValue(expenseArr[startIdx], data, startIdx)
-      balances[startIdx] = startingBalance - firstPayment
-    } else {
-      balances[startIdx] = startingBalance
-    }
+    balances[startIdx] = startingBalance
 
     let amortPayment = 0
     if (hasAmortization && !hasLinkedExpense && settings) {
@@ -141,7 +136,10 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
       let prev = balances[i - 1]
       if (monthlyRate > 0) prev = prev * (1 + monthlyRate)
       if (expenseArr) {
-        balances[i] = prev - resolveValue(expenseArr[i], data, i)
+        // A typed balance wins for its month (a new statement on an empty card);
+        // otherwise the linked payment draws it down, never below zero.
+        const raw = resolveValue(arr[i], data, i)
+        balances[i] = raw > 0 ? raw : Math.max(0, prev + raw - resolveValue(expenseArr[i], data, i))
       } else if (hasAmortization) {
         balances[i] = Math.max(0, prev - amortPayment)
       } else {

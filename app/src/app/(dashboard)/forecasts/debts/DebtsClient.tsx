@@ -107,13 +107,14 @@ export default function DebtsClient() {
     if (s?.linkedAsset) out.push(`${s.linkedAsset} (asset)`)
     return out
   }
-  // Only a row whose balance is driven by a schedule is read-only. Everything
-  // else — plain rows, and interest-only rows — is still typed in by hand, so
+  // Only a row on an amortization schedule is read-only. Everything else —
+  // plain rows, interest-only rows, and rows paid down by a linked expense
+  // (where a typed month resets the balance) — is still typed in by hand, so
   // one computed debt must not lock the whole table. Mirrors computed.ts.
   const isScheduled = (k: string) => {
     const s = dS[k]
     if (!s) return false
-    return !!s.linkedExpense || (s.type === 'loan' && s.interestRate > 0 && !!(s.amortizationMonths || s.remainingMonths))
+    return !s.linkedExpense && s.type === 'loan' && s.interestRate > 0 && !!(s.amortizationMonths || s.remainingMonths)
   }
   const editableComputed = Object.fromEntries(all.filter((k) => !isScheduled(k)).map((k) => [k, true]))
 

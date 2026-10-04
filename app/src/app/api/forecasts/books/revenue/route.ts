@@ -23,16 +23,17 @@ export async function GET(request: NextRequest) {
     select: { dateIssued: true, currency: true, total: true, cadTotal: true, fxRate: true },
   })
   const months: Record<string, number> = {}
+  const now = new Date()
+  const rates = new Map<string, number>()
   for (const inv of invoices) {
     const key = `${inv.dateIssued.getUTCFullYear()}-${String(inv.dateIssued.getUTCMonth() + 1).padStart(2, '0')}`
-    let cad = inv.cadTotal !== null ? Number(inv.cadTotal) : null
-    if (cad === null) {
-      const rate = inv.fxRate !== null ? Number(inv.fxRate) : inv.currency === 'CAD' ? 1 : null
-      if (rate !== null) cad = Number(inv.total) * rate
-      else {
-        try { cad = Number(inv.total) * (await getCadRate(inv.currency, inv.dateIssued)).rate } catch { cad = Number(inv.total) }
-      }
+    // Latest rate, not the rate booked on the issue date.
+    let rate = rates.get(inv.currency)
+    if (rate === undefined) {
+      try { rate = (await getCadRate(inv.currency, now)).rate } catch { rate = inv.fxRate !== null ? Number(inv.fxRate) : 1 }
+      rates.set(inv.currency, rate)
     }
+    const cad = Number(inv.total) * rate
     months[key] = Math.round(((months[key] ?? 0) + cad) * 100) / 100
   }
   return Response.json({ data: { months, invoiceCount: invoices.length } })

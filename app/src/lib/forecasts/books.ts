@@ -127,14 +127,16 @@ export async function buildBooksIncome(months: string[], now = new Date()): Prom
   }
 
   for (const p of payments) {
-    const cad = p.cadAmount !== null ? Number(p.cadAmount) : Number(p.amount) * (p.fxRate !== null ? Number(p.fxRate) : await rateFor(rates, p.currency, p.paymentDate))
+    const cad = Number(p.amount) * await rateFor(rates, p.currency, now)
     add(p.clientId, p.paymentDate, cad, 'collected', `Payment on #${p.invoice.invoiceNumber}`, p.id)
   }
   const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
   for (const inv of open) {
     const remaining = Number(inv.total) - Number(inv.amountPaid)
     if (remaining <= 0) continue
-    const rate = inv.cadTotal !== null && Number(inv.total) > 0 ? Number(inv.cadTotal) / Number(inv.total) : inv.fxRate !== null ? Number(inv.fxRate) : await rateFor(rates, inv.currency, inv.dateIssued)
+    // Income always shows foreign amounts at today's rate, not the rate booked
+    // on the payment or invoice date.
+    const rate = await rateFor(rates, inv.currency, now)
     const cad = remaining * rate
     const dtpDays = daysToPay(inv.clientId)
     let expected = dtpDays !== null ? new Date(inv.dateIssued.getTime() + dtpDays * 86400000) : inv.dateDue

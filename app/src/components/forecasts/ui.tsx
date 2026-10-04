@@ -8,7 +8,7 @@ import { fmtMoney } from '@/lib/forecasts/computed'
 import { parseMonthLabel } from '@/lib/forecasts/months'
 import { useForecast } from './ForecastProvider'
 
-export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, asOf = true }: {
+export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, asOf = true, asOfToday = false }: {
   label: string
   value: string
   negative?: boolean
@@ -17,6 +17,8 @@ export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, 
   sub?: React.ReactNode
   /** Show the "as of" month picker that drives this figure. */
   asOf?: boolean
+  /** Until a month is picked this figure reports today, so the picker says so too. */
+  asOfToday?: boolean
 }) {
   const tone = badgeTone === 'green' ? 'bg-[#E3FCEF] text-[#006644]' : badgeTone === 'red' ? 'bg-[#FFEBE6] text-[#BF2600]' : 'bg-gray-100 text-gray-600'
   return (
@@ -25,7 +27,7 @@ export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, 
       <div className="mt-1 flex flex-wrap items-center gap-3">
         <h1 className={`text-3xl font-semibold tabular-nums ${negative ? 'text-[#BF2600]' : 'text-gray-900'}`}>{value}</h1>
         {badge && <span className={`rounded-full px-2.5 py-1 text-[12px] font-medium ${tone}`}>{badge}</span>}
-        {asOf && <AsOfSelect />}
+        {asOf && <AsOfSelect todayDefault={asOfToday} />}
       </div>
       {sub && <p className="mt-1 text-sm text-gray-500">{sub}</p>}
     </div>
@@ -35,8 +37,10 @@ export function Hero({ label, value, negative, badge, badgeTone = 'muted', sub, 
 /** Month picker driving the headline figure. Defaults to the end of the view range. */
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-export function AsOfSelect() {
-  const { data, computed, asOfIndex, setAsOfIndex } = useForecast()
+export function AsOfSelect({ todayDefault = false }: { todayDefault?: boolean }) {
+  const { data, computed, asOfIndex: pickedIndex, asOfPicked, setAsOfIndex } = useForecast()
+  const showToday = todayDefault && !asOfPicked
+  const asOfIndex = showToday ? computed.todayIdx : pickedIndex
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -72,7 +76,7 @@ export function AsOfSelect() {
         className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[12px] transition-colors ${open ? 'border-[#0075DD] bg-[#DEEBFF] text-[#0747A6]' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}
       >
         <span className="text-gray-400">As of</span>
-        <span className="font-medium">{selected.label}</span>
+        <span className="font-medium">{showToday ? 'Today' : selected.label}</span>
         <svg className="h-3 w-3 opacity-60" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" /></svg>
       </button>
 
