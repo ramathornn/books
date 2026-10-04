@@ -86,6 +86,7 @@ export default function CashFlowTimeline() {
   const hasRange = Number.isFinite(fromMs) && Number.isFinite(toMs)
   const dayCount = hasRange ? Math.round((toMs - fromMs) / 86400000) : 0
   const sliderValue = hasRange ? Math.min(dayCount, Math.max(0, Math.round((asOfDate.getTime() - fromMs) / 86400000))) : 0
+  const sliderPct = dayCount > 0 ? (sliderValue / dayCount) * 100 : 0
   const dateAtStep = (step: number) => { const s0 = new Date(fromMs); return toISO(new Date(s0.getFullYear(), s0.getMonth(), 1 + step)) }
 
   // Bars are scaled against the largest single movement on screen.
@@ -120,9 +121,19 @@ export default function CashFlowTimeline() {
 
       {dayCount > 0 && (
         <div className="mb-4">
-          <input type="range" min={0} max={dayCount} step={1} value={sliderValue} aria-label="Expected balance date"
-            onChange={(e) => setAsOf(dateAtStep(Number(e.target.value)))}
-            className="w-full accent-[#0075DD]" />
+          {/* The native range input sits invisibly on top for dragging and keyboard use; the pill is drawn underneath. */}
+          <div className="relative h-8">
+            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gray-200">
+              <div className="h-full rounded-full bg-[#0075DD]" style={{ width: `${sliderPct}%` }} />
+            </div>
+            <span className="pointer-events-none absolute top-1/2 whitespace-nowrap rounded-full bg-[#0075DD] px-2.5 py-1 text-[11px] font-medium tabular-nums text-white shadow"
+              style={{ left: `${sliderPct}%`, transform: `translate(-${sliderPct}%, -50%)` }}>
+              {dayLabel(asOfDate)}, {asOfDate.getFullYear()}
+            </span>
+            <input type="range" min={0} max={dayCount} step={1} value={sliderValue} aria-label="Expected balance date"
+              onChange={(e) => setAsOf(dateAtStep(Number(e.target.value)))}
+              className="absolute inset-0 h-full w-full cursor-grab opacity-0 active:cursor-grabbing" />
+          </div>
           <div className="flex justify-between text-[11px] text-gray-400"><span>{data.months[from]}</span><span>{data.months[to]}</span></div>
         </div>
       )}
