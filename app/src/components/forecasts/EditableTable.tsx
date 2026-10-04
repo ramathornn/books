@@ -182,7 +182,7 @@ interface Props {
 }
 
 export default function EditableTable({ section, columns, rows, totalRow = null, extraRows = [], preTotalRows = [], rowActions = null, hideTotals = false, onReorder = null, computedValues = null, editableComputedKeys = null, enableDayAssignment = false }: Props) {
-  const { data, computed, scenarios, showTable, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, readOnly } = useForecast()
+  const { data, computed, scenarios, showTable, updateCells, setFlowDay, setRowFlowDay, clearFlowDay, copyLastColumn, readOnly } = useForecast()
   const bar = useFormulaBar()
   const globalSelectMode = !!bar?.selectMode?.picking
   const { from, to } = computed
@@ -319,7 +319,14 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
           <tr>
             <th className="sticky left-0 top-0 z-30 bg-gray-50 px-4 py-1.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500" style={{ minWidth: 160 }}>Category</th>
             {rowActions && <th className="sticky top-0 z-20 w-px bg-gray-50" />}
-            {columns.map((c) => <th key={c} className="sticky top-0 z-20 bg-gray-50 px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">{c}</th>)}
+            {columns.map((c, i) => (
+              <th key={c} className="sticky top-0 z-20 bg-gray-50 px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">
+                {c}
+                {i === columns.length - 1 && !readOnly && section !== 'receivables' && (
+                  <button type="button" onClick={copyLastColumn} title={`Copy ${c} into a new month after it (all income and expense rows)`} className="ml-1.5 rounded border border-gray-300 bg-white px-1 text-[11px] font-semibold leading-4 text-gray-500 hover:border-[#0075DD] hover:text-[#0075DD]">+</button>
+                )}
+              </th>
+            ))}
             {!hideTotals && <th className="sticky top-0 z-20 bg-gray-50 px-3 py-1.5 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Total</th>}
           </tr>
         </thead>

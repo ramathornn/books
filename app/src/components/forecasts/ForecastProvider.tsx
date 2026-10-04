@@ -64,6 +64,8 @@ interface ForecastStore {
   renameScenario: (name: string) => void
   setRateOverride: (currency: 'USD' | 'EUR', rate: number | null) => void
   extendMonths: (count: number) => void
+  /** Copy the last visible month's income and expenses into the month after it, extending the workbook if needed. */
+  copyLastColumn: () => void
   /** Fill an income row with Books' invoiced revenue (CAD) for every month in the workbook. */
   importBooksRevenue: (rowName?: string) => Promise<boolean>
   isLinked: (section: Section, key: string) => boolean
@@ -703,6 +705,51 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     setViewRange(current.viewFrom, Math.max(current.viewTo, count - 1))
   }, [setViewRange])
 
+  const copyLastColumn = useCallback(() => {
+    const cur = dataRef.current
+    const src = cur.viewTo, dst = src + 1
+    const cells: { rowId: string; monthIndex: number; value: CellValue }[] = []
+    const days: { rowId: string; monthIndex: number; day: FlowDayValue }[] = []
+    const empty = (v: CellValue | undefined) => v === undefined || v === null || v === 0 || v === ''
+    void mutate(
+      (prev) => {
+        const next = clone(prev)
+        if (dst + 1 > next.months.length) {
+          const first = parseMonthLabel(next.months[0])
+          if (first) next.months = buildMonths(first.year, first.month, dst + 1)
+          const pad = (arr: CellValue[] | null) => { if (arr) while (arr.length < next.months.length) arr.push(0) }
+          Object.values(next.income).forEach(pad)
+          Object.values(next.expenses).forEach(pad)
+          Object.values(next.receivables).forEach(pad)
+        }
+        // Debts carry their balance forward on their own; Books rows are rebuilt
+        // from Books. Never overwrite a month that already has a value.
+        for (const section of ['income', 'expenses'] as const) {
+          for (const [key, arr] of Object.entries(next[section] as Record<string, CellValue[] | null>)) {
+            if (!arr || next.linked[section]?.[key] || empty(arr[src]) || !empty(arr[dst])) continue
+            arr[dst] = arr[src]
+            const id = rowId(next, section, key)
+            if (!id) continue
+            cells.push({ rowId: id, monthIndex: dst, value: arr[src] })
+            const day = next.flowDays[section]?.[key]?.overrides?.[String(src)]
+            if (day !== undefined && day !== null) {
+              next.flowDays = setFlowDayPure(next.flowDays, section, key, dst, day, 'month')
+              days.push({ rowId: id, monthIndex: dst, day })
+            }
+          }
+        }
+        next.viewTo = dst
+        return next
+      },
+      async (next) => {
+        await api(base, 'PATCH', { viewFrom: next.viewFrom, viewTo: dst })
+        if (cells.length) await api(`${base}/cells`, 'PUT', { cells })
+        for (const d of days) await api(`${base}/flow-days`, 'PUT', { ...d, scope: 'month' })
+        toast.success(`Copied ${next.months[src]} into ${next.months[dst]}`)
+      }
+    )
+  }, [base, mutate])
+
   const importBooksRevenue = useCallback(async (rowName = 'Invoiced revenue (Books)'): Promise<boolean> => {
     const current = dataRef.current
     const first = parseMonthLabel(current.months[0])
@@ -736,9 +783,9 @@ export function ForecastProvider({ initialData, scenarios, initialRates, readOnl
     removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings,
     setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay,
     addAsset, updateAsset, renameAsset, removeAsset,
-    renameScenario, setRateOverride, extendMonths, importBooksRevenue,
+    renameScenario, setRateOverride, extendMonths, copyLastColumn, importBooksRevenue,
     isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts,
-  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, asOfIndex, setAsOfIndex, viewMode, setViewMode, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, importBooksRevenue])
+  }), [isLinked, setBooksLinked, setSalaryMethod, setSetAsideMethod, setOwnerPayAccounts, scopedData, updateCellIn, effectiveAsOf, asOfIndex, setAsOfIndex, viewMode, setViewMode, data, scenarios, rates, computed, readOnly, saving, switchScenario, refresh, updateCell, updateCells, setViewRange, addRevenueItem, addExpenseCategory, addExpenseItem, addReceivable, removeRow, renameRow, reorderRow, toggleRowVisibility, setIncomeCurrency, updateDebtSettings, setBankBalance, clearBankBalance, setFlowDay, setRowFlowDay, clearFlowDay, addAsset, updateAsset, renameAsset, removeAsset, renameScenario, setRateOverride, extendMonths, copyLastColumn, importBooksRevenue])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
