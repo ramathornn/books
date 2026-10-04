@@ -123,7 +123,7 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
     const monthlyRate = hasInterest && settings ? settings.interestRate / 100 / 12 : 0
 
     // The balance typed for a month is what was owed before that month's payment.
-    balances[startIdx] = expenseArr ? Math.max(0, startingBalance - resolveValue(expenseArr[startIdx], data, startIdx)) : startingBalance
+    balances[startIdx] = expenseArr ? startingBalance - resolveValue(expenseArr[startIdx], data, startIdx) : startingBalance
 
     let amortPayment = 0
     if (hasAmortization && !hasLinkedExpense && settings) {
@@ -138,9 +138,9 @@ export function computeForecast(data: ForecastData, rates: Rates, now: Date = ne
       if (monthlyRate > 0) prev = prev * (1 + monthlyRate)
       if (expenseArr) {
         // A typed balance resets what is owed that month (a new statement on an
-        // empty card); the linked payment then draws it down, never below zero.
+        // empty card); the linked payment then draws it down. Overpaying goes negative.
         const raw = resolveValue(arr[i], data, i)
-        balances[i] = Math.max(0, (raw > 0 ? raw : prev + raw) - resolveValue(expenseArr[i], data, i))
+        balances[i] = (raw > 0 ? raw : prev + raw) - resolveValue(expenseArr[i], data, i)
       } else if (hasAmortization) {
         balances[i] = Math.max(0, prev - amortPayment)
       } else {
