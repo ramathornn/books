@@ -149,7 +149,26 @@ export function AreaChart({ data, areas, height = 280, yFormatter = fmtShort, va
 
 export interface EventPoint { t: number; value: number; label: string; color: string; rows: { name: string; value: string; color: string }[] }
 
-/** Stepped balance line over a continuous time axis, with a dot per event day. */
+/** Smooth path through the points that never overshoots them (monotone cubic). */
+function smoothPath(pts: [number, number][]): string {
+  if (pts.length < 2) return pts.length ? `M${pts[0][0]},${pts[0][1]}` : ''
+  const n = pts.length
+  const dx: number[] = [], m: number[] = []
+  for (let i = 0; i < n - 1; i++) { dx.push(pts[i + 1][0] - pts[i][0]); m.push((pts[i + 1][1] - pts[i][1]) / dx[i]) }
+  const t: number[] = [m[0]]
+  for (let i = 1; i < n - 1; i++) {
+    t.push(m[i - 1] * m[i] <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]))
+  }
+  t.push(m[n - 2])
+  let d = `M${pts[0][0]},${pts[0][1]}`
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3
+    d += ` C${pts[i][0] + h},${pts[i][1] + t[i] * h} ${pts[i + 1][0] - h},${pts[i + 1][1] - t[i + 1] * h} ${pts[i + 1][0]},${pts[i + 1][1]}`
+  }
+  return d
+}
+
+/** Smooth balance line over a continuous time axis; hovering shows the nearest event day. */
 export function EventLineChart({ points, start, end, startValue, ticks: xTicks, marker, color = CHART_COLORS[0], height = 300, yFormatter = fmtShort }: {
   points: EventPoint[]
   start: number
@@ -170,9 +189,15 @@ export function EventLineChart({ points, start, end, startValue, ticks: xTicks, 
   const x = (t: number) => PAD.left + (end <= start ? innerW / 2 : ((Math.min(end, Math.max(start, t)) - start) / (end - start)) * innerW)
   const labelEvery = xTicks.length <= 8 ? 1 : Math.ceil(xTicks.length / 8)
 
-  // The balance only moves on an event, so it holds flat until the next one.
-  const line = `M${x(start)},${y(startValue)}${points.map((p) => ` H${x(p.t)} V${y(p.value)}`).join('')} H${x(end)}`
-  const area = `${line} V${y(0)} H${x(start)} Z`
+  // Points closer than a pixel collapse into the later one so the curve stays smooth.
+  const last = points.length ? points[points.length - 1].value : startValue
+  const pts: [number, number][] = []
+  for (const [px, py] of [[x(start), y(startValue)], ...points.map((p) => [x(p.t), y(p.value)]), [x(end), y(last)]] as [number, number][]) {
+    if (pts.length && px - pts[pts.length - 1][0] < 1) pts[pts.length - 1] = [pts[pts.length - 1][0], py]
+    else pts.push([px, py])
+  }
+  const line = smoothPath(pts)
+  const area = `${line} L${x(end)},${y(0)} L${x(start)},${y(0)} Z`
   const hp = hover !== null ? points[hover] : null
 
   return (
@@ -202,7 +227,7 @@ export function EventLineChart({ points, start, end, startValue, ticks: xTicks, 
           <text key={t.t} x={x(t.t)} y={height - 8} textAnchor={i === 0 ? 'start' : 'middle'} fontSize={11} fill="#8C9BAB">{t.label}</text>
         ))}
         <path d={area} fill={`url(#${id}-fill)`} />
-        <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+        <path d={line} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         {marker && marker.t >= start && marker.t <= end && (
           <g>
             <line x1={x(marker.t)} x2={x(marker.t)} y1={PAD.top} y2={height - PAD.bottom} stroke={color} strokeDasharray="4 3" />
@@ -210,7 +235,7 @@ export function EventLineChart({ points, start, end, startValue, ticks: xTicks, 
           </g>
         )}
         {hp && <line x1={x(hp.t)} x2={x(hp.t)} y1={PAD.top} y2={height - PAD.bottom} stroke="#C9D1DA" />}
-        {points.map((p, i) => <circle key={i} cx={x(p.t)} cy={y(p.value)} r={i === hover ? 5 : 3} fill={p.color} stroke="#fff" strokeWidth={1.5} />)}
+        {hp && <circle cx={x(hp.t)} cy={y(hp.value)} r={4} fill={color} stroke="#fff" strokeWidth={2} />}
       </svg>
       {hp && <Tooltip x={x(hp.t)} y={PAD.top + 20} title={hp.label} rows={hp.rows} />}
     </div>

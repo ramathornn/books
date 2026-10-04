@@ -1,7 +1,7 @@
 'use client'
 
-// Day-by-day projected balance as a line, with a dot on every day something
-// lands. Same events and anchor as the timeline below it.
+// Day-by-day projected balance as a smooth line; hovering shows what lands on
+// the nearest day. Same events and anchor as the timeline below it.
 
 import { useMemo } from 'react'
 import { useForecast } from './ForecastProvider'
@@ -44,14 +44,6 @@ export default function CashFlowChart() {
   }
 
   const ticks = data.months.slice(from, to + 1).flatMap((label) => { const p = parseMonthLabel(label); return p ? [{ t: new Date(p.year, p.month, 1).getTime(), label }] : [] })
-  const legend = [['Money in', IN], ['Money out', OUT], ['Recorded balance', RECORDED]]
 
-  return (
-    <div>
-      <EventLineChart points={points} start={fromMs} end={toMs} startValue={balanceAt(base, events, fromMs - 1)} ticks={ticks} marker={{ t: now, label: 'Today' }} height={300} />
-      <div className="mt-2 flex flex-wrap gap-4 text-[12px] text-gray-500">
-        {legend.map(([name, color]) => <span key={name} className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: color }} />{name}</span>)}
-      </div>
-    </div>
-  )
+  return <EventLineChart points={points} start={fromMs} end={toMs} startValue={balanceAt(base, events, fromMs - 1)} ticks={ticks} marker={{ t: now, label: 'Today' }} height={300} />
 }
