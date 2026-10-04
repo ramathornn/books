@@ -29,7 +29,9 @@ export default function CashFlowTimeline() {
   const toP = parseMonthLabel(data.months[to])
   const fromMs = fromP ? new Date(fromP.year, fromP.month, 1).getTime() : -Infinity
   const toMs = toP ? new Date(toP.year, toP.month, daysInMonth(toP), 23, 59, 59).getTime() : Infinity
-  const groups = useMemo(() => groupByDay(annotated, fromMs, toMs), [annotated, fromMs, toMs])
+  const dayGroups = useMemo(() => groupByDay(annotated, fromMs, toMs), [annotated, fromMs, toMs])
+  // Copies, because the anchor/today flags are set on them below.
+  const groups = dayGroups.map((g) => ({ ...g }))
 
   const asOfDate = fromISO(asOf)
   const expected = balanceAt(base, events, new Date(asOfDate.getFullYear(), asOfDate.getMonth(), asOfDate.getDate(), 23, 59, 59))
@@ -66,12 +68,25 @@ export default function CashFlowTimeline() {
 
   const todayRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  // Scroll the list (not the page) so "today" sits mid-viewport on load.
+  // Scroll the list (not the page) to the first row on or after the as-of date,
+  // so the slider, the date box and "Jump to today" all move the timeline.
   useEffect(() => {
-    const el = todayRef.current, list = listRef.current
-    if (el && list) list.scrollTop = Math.max(0, el.offsetTop - list.clientHeight / 2)
-  }, [data.id])
-  const low = groups.reduce((m, g) => Math.min(m, g.balance), Infinity)
+    const list = listRef.current
+    if (!list) return
+    const [y, m, d] = asOf.split('-').map(Number)
+    const target = new Date(y, m - 1, d).getTime()
+    const rows = Array.from(list.querySelectorAll<HTMLElement>('[data-t]'))
+    const el = rows.find((r) => Number(r.dataset.t) >= target) ?? rows[rows.length - 1]
+    if (el) list.scrollTop = Math.max(0, el.offsetTop - list.clientHeight / 3)
+  }, [asOf, data.id])
+  // Lowest point the balance touches, event by event (not just end of day).
+  const low = groups.reduce((m, g) => g.events.reduce((n, e) => Math.min(n, e.balance), m), Infinity)
+
+  // Slider: one step per day across the visible range.
+  const hasRange = Number.isFinite(fromMs) && Number.isFinite(toMs)
+  const dayCount = hasRange ? Math.round((toMs - fromMs) / 86400000) : 0
+  const sliderValue = hasRange ? Math.min(dayCount, Math.max(0, Math.round((asOfDate.getTime() - fromMs) / 86400000))) : 0
+  const dateAtStep = (step: number) => { const s0 = new Date(fromMs); return toISO(new Date(s0.getFullYear(), s0.getMonth(), 1 + step)) }
 
   // Bars are scaled against the largest single movement on screen.
   const maxAbs = groups.reduce((m, g) => g.events.reduce((n, e) => Math.max(n, Math.abs(e.amount)), m), 0)
@@ -103,11 +118,20 @@ export default function CashFlowTimeline() {
         <button type="button" onClick={() => setAsOf(toISO(new Date()))} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Jump to today</button>
       </div>
 
+      {dayCount > 0 && (
+        <div className="mb-4">
+          <input type="range" min={0} max={dayCount} step={1} value={sliderValue} aria-label="Expected balance date"
+            onChange={(e) => setAsOf(dateAtStep(Number(e.target.value)))}
+            className="w-full accent-[#0075DD]" />
+          <div className="flex justify-between text-[11px] text-gray-400"><span>{data.months[from]}</span><span>{data.months[to]}</span></div>
+        </div>
+      )}
+
       {!anchor && <div className="mb-3 rounded bg-[#FFF4E0] px-3 py-2 text-[13px] text-[#8F5E00]">No recorded balance yet, so the projection starts from $0. Use <strong>Record Balance</strong> to anchor it.</div>}
       {anchor && Number.isFinite(low) && low < 0 && (
         <button
           type="button"
-          onClick={() => { const el = lowRef.current, list = listRef.current; if (el && list) list.scrollTop = Math.max(0, el.offsetTop - list.clientHeight / 3) }}
+          onClick={() => lowRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
           className="mb-3 flex w-full items-center justify-between rounded bg-[#FFEBE6] px-3 py-2 text-left text-[13px] text-[#BF2600] hover:bg-[#FFD5CC]"
         >
           <span>Projected balance dips to <strong>{fmtMoney(low)}</strong> in this range.</span>
@@ -133,7 +157,7 @@ export default function CashFlowTimeline() {
               const isToday = r.type === 'today' || !!(r as MarkItem).alsoToday
               const label = r.type === 'anchor' ? ((r as MarkItem).alsoToday ? 'Cash on hand · today' : 'Recorded cash on hand') : 'Today'
               return (
-                <div key={r.type} ref={isToday ? todayRef : undefined} className={`${GRID} border-b border-gray-50 py-1.5`}>
+                <div key={r.type} data-t={r.t} ref={isToday ? todayRef : undefined} className={`${GRID} border-b border-gray-50 py-1.5`}>
                   <span className="text-[12px] text-gray-500">{dayLabel(r.date)}</span>
                   <span className="flex items-center gap-2 truncate">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${isToday ? 'bg-[#0075DD]' : 'bg-[#2FA84F]'}`} />
@@ -151,12 +175,13 @@ export default function CashFlowTimeline() {
               <div key={g.key}>
                 {g.events.map((e, j) => {
                   const negative = e.balance < 0
-                  const flagLow = negative && !lowSeen
+                  const flagLow = negative && e.balance === low && !lowSeen
                   if (flagLow) lowSeen = true
                   const marker = j === 0 && (g.isToday || g.isAnchor)
                   return (
                     <div
                       key={j}
+                      data-t={g.date.getTime()}
                       ref={flagLow ? lowRef : g.isToday && j === 0 ? todayRef : undefined}
                       className={`${GRID} border-b border-gray-50 py-1.5 ${negative ? 'border-l-2 border-l-[#FFAB00] bg-[#FFFBF5] pl-1' : ''} ${g.isToday ? 'bg-[#F4F9FF]' : ''}`}
                     >
