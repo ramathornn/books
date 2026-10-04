@@ -12,7 +12,7 @@ import { toast } from '@/lib/toast'
 
 export default function ExpensesClient() {
   const { data, computed, asOfIndex, showTable, showCharts, addExpenseCategory, addExpenseItem, removeRow, renameRow, reorderRow, toggleRowVisibility, readOnly } = useForecast()
-  const { viewMonths, viewExpenses, viewIncome, avgExpenses, categoryTotals, totalExpenses, totalIncome, from } = computed
+  const { viewMonths, viewExpenses, viewIncome, viewBalance, avgExpenses, categoryTotals, totalExpenses, totalIncome, from } = computed
   // Running totals through the selected month.
   const asOfTo = Math.max(from, asOfIndex)
   const sumExpenses = totalExpenses.slice(from, asOfTo + 1).reduce((a, b) => a + b, 0)
@@ -68,6 +68,7 @@ export default function ExpensesClient() {
         extraRows={[
           { label: 'Projected income', values: viewIncome, tone: 'muted' },
           { label: 'Net', values: viewIncome.map((v, i) => v - (viewExpenses[i] ?? 0)) },
+          { label: 'Cash balance', values: viewBalance, total: viewBalance[viewBalance.length - 1] ?? 0 },
         ]}
         preTotalRows={showSetAside ? [{
           label: 'CRA FY set-aside',

@@ -169,7 +169,8 @@ interface Props {
   rows: TableRow[]
   totalRow?: { label: string; values: number[] } | null
   /** Rows under the total. 'muted' reads as reference data, 'signed' colours by sign. */
-  extraRows?: { label: string; values: number[]; tone?: 'signed' | 'muted' }[]
+  /** `total` replaces the summed Total cell (e.g. a balance row ends on its last value). */
+  extraRows?: { label: string; values: number[]; tone?: 'signed' | 'muted'; total?: number }[]
   /** Rows rendered immediately above the total row (e.g. the CRA set-aside). */
   preTotalRows?: { label: string; values: number[]; note?: string }[]
   rowActions?: ((row: TableRow) => React.ReactNode) | null
@@ -442,7 +443,7 @@ export default function EditableTable({ section, columns, rows, totalRow = null,
             </tr>
           )}
           {extraRows.map((r) => {
-            const sum = r.values.reduce((a, b) => a + b, 0)
+            const sum = r.total ?? r.values.reduce((a, b) => a + b, 0)
             const tint = (v: number) => (r.tone === 'muted' ? 'text-gray-500' : v >= 0 ? 'text-[#006644]' : 'text-[#BF2600]')
             return (
               <tr key={r.label} className="text-gray-600">
